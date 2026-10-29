@@ -56,7 +56,7 @@ $p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 ```
 
-自包含版本约 50 MB，无需安装运行时。压缩仅对自包含版本有效，代价是首次启动延迟约半秒：
+自包含版本约 50 MB，无需安装运行时。代价是首次启动延迟约半秒：
 
 ```
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone
@@ -88,7 +88,7 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 
 任一环节失败时，一并输出子进程的 stderr。日志文件位于 `%TEMP%\GPGate\gpgate.log`。达到 512 KB 后轮转。
 
-错误信息统一通过 TaskDialog 呈现。主窗口处于隐藏状态时，先将其恢复显示。在无控制台环境下，参数错误同样以对话框提示。完整用法置于对话框的展开区域中。
+错误与提示统一使用跟随系统深浅色的对话框。主窗口处于隐藏状态时，先将其恢复显示。在无控制台环境下，参数错误同样以对话框提示。完整用法置于对话框的展开区域中。
 
 开机自启由托盘菜单控制。未勾选「自启时启动托盘」时，开机仅以 `/s` 启动。启动过程在后台进行。
 

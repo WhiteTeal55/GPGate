@@ -225,6 +225,45 @@ internal sealed class MainForm : Form
             return;
         }
 
+        bool confirmExit = true;
+        if (e.CloseReason == CloseReason.UserClosing)
+        {
+            try
+            {
+                confirmExit = CloseConfirmationPreference.IsEnabled;
+            }
+            catch (Exception ex)
+            {
+                _ = Log.Error($"读取退出确认设置失败: {ex}");
+                Dialogs.Show(this, TaskDialogIcon.Error, ex.Message, "读取设置失败");
+            }
+        }
+
+        if (e.CloseReason == CloseReason.UserClosing && confirmExit)
+        {
+            using CloseConfirmationForm confirmation = new(_lightTheme);
+            if (confirmation.ShowDialog(this) != DialogResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            if (confirmation.DontAskAgain)
+            {
+                try
+                {
+                    CloseConfirmationPreference.SetEnabled(false);
+                }
+                catch (Exception ex)
+                {
+                    _ = Log.Error($"保存退出确认设置失败: {ex}");
+                    e.Cancel = true;
+                    Dialogs.Show(this, TaskDialogIcon.Error, ex.Message, "保存设置失败");
+                    return;
+                }
+            }
+        }
+
         base.OnFormClosing(e);
     }
 
@@ -476,12 +515,25 @@ internal sealed class MainForm : Form
         RefreshStatus(); // 打开前刷新，菜单项不过期
         _ = Startup.Sync();
 
+        bool exitConfirmationEnabled;
+        try
+        {
+            exitConfirmationEnabled = CloseConfirmationPreference.IsEnabled;
+        }
+        catch (Exception ex)
+        {
+            _ = Log.Error($"读取退出确认设置失败: {ex}");
+            ShowError($"读取退出确认设置失败：{ex.Message}");
+            return;
+        }
+
         TrayCommand command = _trayMenu.Show(new TrayMenuState(
             WindowVisible: Visible,
             Running: _running,
             Busy: Busy,
             StartupEnabled: Startup.IsEnabled,
             TrayOnStartup: Startup.TrayOnStartup,
+            ExitConfirmationEnabled: exitConfirmationEnabled,
             CanManageStartup: Startup.CanManageStartup,
             LightTheme: _lightTheme));
 
@@ -503,6 +555,17 @@ internal sealed class MainForm : Form
             case TrayCommand.ToggleStartupTray:
                 if (!Startup.ToggleTray())
                     ShowError(StartupError);
+                break;
+            case TrayCommand.ToggleExitConfirmation:
+                try
+                {
+                    CloseConfirmationPreference.SetEnabled(!exitConfirmationEnabled);
+                }
+                catch (Exception ex)
+                {
+                    _ = Log.Error($"保存退出确认设置失败: {ex}");
+                    ShowError($"保存退出确认设置失败：{ex.Message}");
+                }
                 break;
             case TrayCommand.OpenLog: OpenLogFolder(); break;
             case TrayCommand.About: ShowAbout(); break;

@@ -11,6 +11,7 @@ internal enum TrayCommand
     Restart,
     ToggleStartup,
     ToggleStartupTray,
+    ToggleExitConfirmation,
     OpenLog,
     About,
     Exit,
@@ -22,6 +23,7 @@ internal readonly record struct TrayMenuState(
     bool Busy,
     bool StartupEnabled,
     bool TrayOnStartup,
+    bool ExitConfirmationEnabled,
     bool CanManageStartup,
     bool LightTheme);
 
@@ -87,6 +89,9 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
                 Append(menu, TrayCommand.None, "开机自启需要管理员权限", enabled: false);
 
             Separator(menu);
+            Append(menu, TrayCommand.ToggleExitConfirmation, "退出二次确认",
+                checkedItem: state.ExitConfirmationEnabled);
+            Separator(menu);
             Append(menu, TrayCommand.OpenLog, "打开日志");
             Append(menu, TrayCommand.About, "关于");
             Append(menu, TrayCommand.Exit, "退出");
@@ -122,8 +127,13 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
     // 深色渲染按窗口开启（uxtheme 未公开入口）
     private void ApplyTheme(bool lightTheme)
     {
-        SetPreferredAppMode(lightTheme ? PreferredAppModeForceLight : PreferredAppModeForceDark);
+        SetApplicationTheme(lightTheme);
         AllowDarkModeForWindow(Handle, !lightTheme);
+    }
+
+    internal static void SetApplicationTheme(bool lightTheme)
+    {
+        SetPreferredAppMode(lightTheme ? PreferredAppModeForceLight : PreferredAppModeForceDark);
         FlushMenuThemes();
     }
 
