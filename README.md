@@ -9,7 +9,7 @@ GPGate.exe /s   启动
 GPGate.exe /k   终止
 GPGate.exe /r   重启
 GPGate.exe /g   打开图形界面
-GPGate.exe      自动切换（在跑就停，没跑就启动）
+GPGate.exe      自动切换（正在运行就停止，未在运行就启动）
 ```
 
 参数不区分大小写。参数多余时程序报错退出，返回码 `2`。
