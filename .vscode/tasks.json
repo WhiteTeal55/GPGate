@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "构建：框架依赖版本",
+            "type": "shell",
+            "command": "dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish",
+            "problemMatcher": []
+        },
+        {
+            "label": "构建：自包含版本",
+            "type": "shell",
+            "command": "dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone",
+            "problemMatcher": []
+        },
+    ]
+}
