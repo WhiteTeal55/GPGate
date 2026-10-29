@@ -1,6 +1,6 @@
 # GPGate
 
-把 `gpg-agent` / `keyboxd` 的启停压成一条命令。
+用于 `gpg-agent` 与 `keyboxd` 的启停管理，封装为单条命令。
 
 ## 用法
 
@@ -12,29 +12,49 @@ GPGate.exe /g   打开图形界面
 GPGate.exe      自动切换（在跑就停，没跑就启动）
 ```
 
-大小写不敏感；多余参数报错并返回 `2`。双击进界面，从终端调用才附着控制台，所以 shell 不等它结束——取退出码用 `$p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode`（别用 `-Wait`，它会连 `gpg-agent` 一起等，看着像卡死）。退出码 `0` 成功、`1` 失败、`2` 参数错误。
+参数不区分大小写。参数多余时程序报错退出，返回码 `2`。
 
-只支持 Windows 11 x64；`gpgconf.exe`、`gpg-connect-agent.exe` 需在 PATH 里。
+双击运行时进入图形界面。在终端中调用会附着控制台，shell 不等待其结束。因此获取退出码需自行等待：
+
+```
+$p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
+```
+
+不建议使用 `-Wait`。它会连带等待 `gpg-agent`，而后者由 GPGate 派生。父进程等待子进程时界面无响应，容易被误判为卡死。改用 `-PassThru` 取得进程对象后再调用 `WaitForExit()`，等待范围限于 GPGate 自身。
+
+退出码含义：`0` 成功，`1` 失败，`2` 参数错误。
+
+仅支持 Windows 11 x64。`gpgconf.exe` 与 `gpg-connect-agent.exe` 必须位于 PATH 中。
 
 ## 图形界面
 
-无边框圆角卡片，跟随应用深浅色、按 DPI 缩放。顶部可拖动；Esc 关闭，F1 打开关于。– 收进托盘（单击重开），× 退出（执行中会等动作完成，期间锁定界面；失败则留在界面提示）。只显示可用操作，每 2 秒刷新；状态行右侧是「日志」和版本号（Tab 聚焦，空格打开关于）。窗口与任务栏图标右上角带状态圆点（蓝=运行中、灰=未运行）。
+界面为无边框圆角卡片，跟随系统主题配色，按 DPI 缩放。
+
+顶部区域可拖动。Esc 关闭窗口，F1 打开关于。
+
+`–` 最小化至托盘，单击托盘图标即可恢复。`×` 为退出。若当前有操作正在执行，程序会等待该操作完成后再退出。等待期间界面锁定，不响应点击。操作失败时程序不退出，在界面上提示错误。
+
+界面只呈现当前可用的操作，状态每 2 秒刷新。状态行右侧为「日志」与版本号。可用 Tab 聚焦，空格打开关于。
+
+窗口图标与任务栏图标右上角显示状态圆点。蓝色为运行中，灰色为未运行。
 
 <img src="assets/shot-dark-off.png" width="260" alt="深色 · 未运行"> <img src="assets/shot-light-on.png" width="260" alt="浅色 · 运行中">
 
-托盘右键是系统原生菜单（跟随深浅色），含「打开日志」「关于」等项；「关于」显示版本、版权与图标署名。重复启动或 `/g` 只唤醒已有实例，3 秒内唤不出会弹提示。
+托盘右键菜单为系统原生菜单，跟随主题配色。菜单项包含「打开日志」与「关于」。关于页显示版本、版权与图标署名。
+
+程序已在运行时，再次启动或执行 `/g` 均不会创建新实例。已有实例将被唤至前台。3 秒内未能唤出时会弹出提示。
 
 ## 构建
 
-需要 .NET 10 SDK。两个版本可以一次出齐。
+需要 .NET 10 SDK，两种发布方式可一次生成。
 
-框架依赖（约 680 KB，需 .NET 10 桌面运行时）：
+框架依赖版本约 680 KB，运行时需安装 .NET 10 桌面运行时：
 
 ```
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 ```
 
-自包含（约 50 MB，免运行时；压缩只对它有效，首启慢半秒）：
+自包含版本约 50 MB，无需安装运行时。压缩仅对自包含版本有效，代价是首次启动延迟约半秒：
 
 ```
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone
@@ -42,14 +62,32 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 
 ## 图标与许可
 
-GnuPG 官方 artwork 衍生（CC BY-SA 4.0，见 `src/GPGate/Assets/README.md`）：运行中原色，未运行随主题取白/黑；48px 以上带外环 logo，16–32px 只用挂锁。状态圆点运行时画到窗口图标上，不写进 ico；改设计后跑 `python tools/make-icon.py`。
+图标基于 GnuPG 官方 artwork 派生，采用 CC BY-SA 4.0。改动说明见 `src/GPGate/Assets/README.md`。
 
-代码 MIT（`LICENSE`）；图标 CC BY-SA 4.0。与 GnuPG 项目无隶属关系。
+运行中使用原色，未运行时按主题取白或黑。48px 以上尺寸带外环 logo，16–32px 仅保留挂锁。
+
+状态圆点在运行时绘制到窗口图标上，不写入 ico 文件。修改图标设计后需重新执行 `python tools/make-icon.py`。
+
+代码采用 MIT 许可，见 `LICENSE`；图标为 CC BY-SA 4.0。本项目与 GnuPG 项目无隶属关系。
 
 ## 说明
 
-- 启动：`gpg-connect-agent /bye` → 等 agent socket（最多 5 秒，路径取自 `gpgconf --list-dirs agent-socket`）→ `--keyboxd /bye`；终止：`gpgconf --kill all`；单条命令 10 秒超时。
-- 命令行与 GUI 共用 `Local\GPGate.Action` 锁，抢不到立即返回；只在 PATH 的绝对路径项里找 exe，避免当前目录同名文件劫持。
-- 失败附子进程 stderr；日志 `%TEMP%\GPGate\gpgate.log`（512 KB 轮转）。
-- 错误提示统一用 TaskDialog；窗口隐藏时先唤出主窗口；无控制台时参数错误也弹窗，完整用法收在展开器里。
-- 开机自启：托盘切换；不勾「自启时启动托盘」则只以 `/s` 后台启动。启动、操作、开菜单时同步，exe 移动或改名后重写路径；写入失败时菜单提示需要管理员权限。
+启动流程分为三步：
+
+1. 执行 `gpg-connect-agent /bye`，启动 agent。
+2. 等待 agent socket 就绪。等待上限为 5 秒。socket 路径取自 `gpgconf --list-dirs agent-socket`，未采用硬编码。
+3. 执行 `--keyboxd /bye`。
+
+终止流程仅执行单条 `gpgconf --kill all`。每条命令均设有 10 秒超时。超时即判定为失败。
+
+命令行与图形界面共用互斥锁 `Local\GPGate.Action`。未能获取该锁时立即返回，且不进入等待队列。
+
+可执行文件的查找范围限定于 PATH 中的绝对路径项。当前目录不参与检索。此举用于避免同名文件劫持。
+
+任一环节失败时，一并输出子进程的 stderr。日志文件位于 `%TEMP%\GPGate\gpgate.log`。达到 512 KB 后轮转。
+
+错误信息统一通过 TaskDialog 呈现。主窗口处于隐藏状态时，先将其恢复显示。在无控制台环境下，参数错误同样以对话框提示。完整用法置于对话框的展开区域中。
+
+开机自启由托盘菜单控制。未勾选「自启时启动托盘」时，开机仅以 `/s` 启动。启动过程在后台进行。
+
+该配置在程序启动、执行操作及打开菜单时进行同步。可执行文件可能被移动或改名。此时其路径将被重写。写入失败时，托盘菜单提示需要管理员权限。
