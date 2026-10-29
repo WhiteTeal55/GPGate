@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <AssemblyName>GPGate</AssemblyName>
+    <RootNamespace>GPGate</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DebugType>embedded</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+    <EnableSourceLink>false</EnableSourceLink>
+    <Version>1.0.0</Version>
+    <Company>WhiteTeal55</Company>
+    <Product>GPG 代理启停控制工具</Product>
+    <Copyright>© 2026 WhiteTeal55</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\app.ico" LogicalName="GPGate.app.ico" />
+    <EmbeddedResource Include="Assets\app-off.ico" LogicalName="GPGate.app-off.ico" />
+    <EmbeddedResource Include="Assets\app-off-light.ico" LogicalName="GPGate.app-off-light.ico" />
+  </ItemGroup>
+
+</Project>

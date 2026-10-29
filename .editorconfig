@@ -1,0 +1,8 @@
+root = true
+
+[*.cs]
+# 扁平命名空间，不按文件夹拆分
+dotnet_style_namespace_match_folder = false
+
+# 保留 DllImport，不迁移 LibraryImport
+dotnet_diagnostic.SYSLIB1054.severity = none
