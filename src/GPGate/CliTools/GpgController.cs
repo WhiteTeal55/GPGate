@@ -8,8 +8,7 @@ internal static class GpgController
 {
     private static readonly string[] GpgProcessNames = ["gpg-agent", "keyboxd", "scdaemon"];
     private const int ExecTimeoutMs = 10_000;
-    private const int AgentReadyTimeoutMs = 5_000;
-    private const int AgentReadyPollMs = 100;
+    private const int MaxDetailChars = 300;
 
     private static bool _queryFailed;
 
@@ -52,66 +51,11 @@ internal static class GpgController
         if (Exec("gpg-connect-agent", "/bye", "启动 gpg-agent") is { } failed)
             return failed;
 
-        // 等 agent socket 就绪再拉 keyboxd
-        if (!WaitForAgentReady())
-            _ = Log.Warn("等待 gpg-agent 就绪超时，仍尝试启动 keyboxd");
-
+        // gpg-connect-agent 会自己等 agent 起来
         return Exec("gpg-connect-agent", "--keyboxd /bye", "启动 keyboxd");
     }
 
     public static string? Restart() => Kill() ?? Start();
-
-    private static bool WaitForAgentReady()
-    {
-        // gpgconf 可能输出带引号的路径；命名管道没有可等的文件
-        string socket = AgentSocket().Trim().Trim('"');
-        if (socket.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
-            return true;
-
-        Stopwatch watch = Stopwatch.StartNew();
-        while (!File.Exists(socket) && watch.ElapsedMilliseconds < AgentReadyTimeoutMs)
-            Thread.Sleep(AgentReadyPollMs);
-
-        return File.Exists(socket);
-    }
-
-    // 路径由 gpgconf 给出，自定义 socketdir 也能正确等待
-    private static string AgentSocket() =>
-        QueryTool("gpgconf", "--list-dirs agent-socket")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "gnupg", "S.gpg-agent");
-
-    private static string? QueryTool(string appName, string arguments)
-    {
-        string? path = FindTool(appName);
-        if (path is null)
-            return null;
-
-        try
-        {
-            using Process process = Process.Start(new ProcessStartInfo(path, arguments)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-            })!;
-
-            // 先异步读，避免输出量大时和 WaitForExit 互锁
-            Task<string> output = ReadTextAsync(process.StandardOutput);
-
-            if (!process.WaitForExit(ExecTimeoutMs))
-            {
-                Kill(process);
-                return null;
-            }
-
-            string text = output.Wait(1000) ? output.Result.Trim() : "";
-            return process.ExitCode == 0 && text.Length > 0 ? text : null;
-        }
-        catch (Exception)
-        {
-            return null; // 找不到、无法启动、读取失败都当作无结果
-        }
-    }
 
     // 成功返回 null
     private static string? Exec(string appName, string arguments, string description)
@@ -129,7 +73,7 @@ internal static class GpgController
                 RedirectStandardError = true,
             })!;
 
-            // 提前异步读 stderr，防管道写满；守护进程会继承管道不放，只等 1 秒
+            // 先异步读，防管道写满
             Task<string> stderr = ReadTextAsync(process.StandardError);
 
             // 卡住时不能一直占着全局锁
@@ -139,14 +83,17 @@ internal static class GpgController
                 return Log.Warn($"{description} 超时，已强制结束");
             }
 
-            // 成功后不等守护进程关闭管道，失败时最多等 1 秒收集 stderr
+            // 成功不等管道关闭，失败最多等 1 秒
             bool collected = process.ExitCode != 0 ? stderr.Wait(1000) : stderr.IsCompletedSuccessfully;
             string detail = collected ? stderr.Result.Trim() : "";
+            if (detail.Length > MaxDetailChars)
+                detail = detail[..MaxDetailChars] + "…";
 
             if (process.ExitCode == 0)
             {
+                // GnuPG 的提示也走 stderr
                 if (detail.Length > 0)
-                    _ = Log.Warn($"{description} 输出: {detail}");
+                    _ = Log.Info($"{description} 输出: {detail}");
 
                 return null;
             }

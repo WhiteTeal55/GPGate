@@ -72,11 +72,11 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 
 ## 说明
 
-启动会拉起 `gpg-agent` 与 `keyboxd`，终止则一并结束。单次操作超过 10 秒未完成即判定为失败。
+启动会拉起 `gpg-agent` 与 `keyboxd`，终止则一并结束。单个子进程超过 10 秒未退出即判定为失败。
 
 同时只允许一个操作，已有操作在跑时新的调用立即返回失败，不排队。
 
-任一环节失败时，对话框会一并给出子进程的错误输出。日志位于 `%TEMP%\GPGate\gpgate.log`。
+任一环节失败时，对话框会一并给出子进程的错误输出。日志位于 `%TEMP%\GPGate\gpgate.log`，按行记录，超过 512 KB 轮转为 `.old`。
 
 在无控制台环境下，参数错误和执行失败同样以对话框提示。完整用法置于对话框的展开区域中。
 

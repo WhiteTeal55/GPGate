@@ -17,6 +17,9 @@ internal static class Program
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error($"未处理异常: {e.ExceptionObject}");
 
+        string mode = args.Length == 0 ? "无" : string.Join(' ', args);
+        _ = Log.Info($"启动 {AppInfo.Name} {AppInfo.Version}，参数: {mode}，pid: {Environment.ProcessId}");
+
         // 启动即同步自启项
         _ = Startup.Sync();
 

@@ -14,10 +14,12 @@ internal static class Log
 
     internal static string Warn(string message) => Write("警告", message);
 
+    internal static string Info(string message) => Write("信息", message);
+
     // 写日志并返回可用于终端/弹窗的单行文本；任何异常都不向外抛
     private static string Write(string level, string message)
     {
-        string line = $"[{level}] {message}";
+        string line = $"[{level}] {string.Join(" / ", message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))}";
         bool owned = false;
         Mutex? gate = null;
         try
