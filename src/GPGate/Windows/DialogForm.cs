@@ -14,6 +14,8 @@ internal sealed class DialogForm : Form
 
     internal DialogForm(TaskDialogIcon icon, string text, string? heading, string? details)
     {
+        SuspendLayout();
+
         Application.SetColorMode(SystemColorMode.System); // 每次打开都按系统深浅色重设
 
         _windowIcon = AppInfo.LoadAppIcon();
@@ -76,8 +78,8 @@ internal sealed class DialogForm : Form
                 Icon = "\uE76C", // ChevronRight
                 ForeColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).ChipText,
             };
-            // 文字对齐内容列，chevron 溢出到左侧
-            link.Location = new Point(ContentLeft - link.GetIconOffset(), y + 10);
+            // 文字对齐内容列，chevron 溢出到左侧；左缘在 Load 里按实际 DPI 校正
+            link.Location = new Point(ContentLeft, y + 10);
             Controls.Add(link);
 
             detailsBox = new TextBox
@@ -110,14 +112,22 @@ internal sealed class DialogForm : Form
 
         AcceptButton = ok;
         CancelButton = ok;
-        int separatorTop = separator.Top;
         ClientSize = new Size(DialogWidth, ok.Bottom + 12);
+        ResumeLayout(false);
+        PerformLayout();
 
         Shown += (_, _) => ActiveControl = ok; // 默认焦点给确定
 
         bool expanded = false;
         if (link is not null)
+        {
             link.Click += (_, _) => Toggle();
+
+            // chevron 宽是物理像素，AutoScale 完成后才对齐得上
+            Load += (_, _) => AlignLink();
+        }
+
+        void AlignLink() => link!.Left = LogicalToDeviceUnits(ContentLeft) - link.GetIconOffset();
 
         // 原生 TaskDialog 展开/收起是瞬间换高
         void Toggle()
@@ -125,11 +135,14 @@ internal sealed class DialogForm : Form
             expanded = !expanded;
             link!.Icon = expanded ? "\uE70D" : "\uE76C"; // ChevronDown / ChevronRight
             link.Text = expanded ? "隐藏详细信息" : "显示详细信息";
-            link.Left = ContentLeft - link.GetIconOffset();
+            AlignLink();
             detailsBox!.Visible = expanded;
-            separator.Top = separatorTop + (expanded ? DetailsHeight + 12 : 0);
-            ok.Top = separator.Bottom + 12;
-            ClientSize = new Size(DialogWidth, ok.Bottom + 12);
+
+            int gap = LogicalToDeviceUnits(12);
+            separator.Top = link.Bottom + LogicalToDeviceUnits(20)
+                + (expanded ? detailsBox.Height + gap : 0);
+            ok.Top = separator.Bottom + gap;
+            ClientSize = new Size(ClientSize.Width, ok.Bottom + gap);
         }
     }
 

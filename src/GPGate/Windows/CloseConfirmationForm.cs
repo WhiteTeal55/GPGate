@@ -9,6 +9,8 @@ internal sealed class CloseConfirmationForm : Form
 
     internal CloseConfirmationForm()
     {
+        SuspendLayout();
+
         // 每次打开都按系统深浅色重设
         Application.SetColorMode(SystemColorMode.System);
 
@@ -70,6 +72,9 @@ internal sealed class CloseConfirmationForm : Form
         AcceptButton = exit;
         CancelButton = cancel;
         Controls.AddRange([logo, prompt, separator, _dontAskAgain, cancel, exit]);
+        ResumeLayout(false);
+        PerformLayout();
+
         Shown += (_, _) => ActiveControl = exit; // 默认焦点给确定
     }
 

@@ -12,6 +12,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        // 所有路径共用同一 DPI 与视觉样式设置
+        ApplicationConfiguration.Initialize();
+
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error($"未处理异常: {e.ExceptionObject}");
 
         // 启动即同步自启项
@@ -100,7 +103,6 @@ internal static class Program
 
         try
         {
-            ApplicationConfiguration.Initialize();
             Application.SetColorMode(SystemColorMode.System);
             Application.Run(new MainForm());
             return 0;

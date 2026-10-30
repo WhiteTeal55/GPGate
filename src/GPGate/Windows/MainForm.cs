@@ -265,18 +265,20 @@ internal sealed class MainForm : Form
         if (disposing)
         {
             _timer.Dispose();
-            _tray.Visible = false;
-            _tray.Dispose();
+            _tray.Dispose(); // 顺带移除托盘图标
             _trayMenu.Dispose();
             Icon = null; // 先断开引用再释放图标
-            _icons.Dispose();
+        }
 
+        base.Dispose(disposing); // 子控件销毁后再释放它们引用的字体
+
+        if (disposing)
+        {
+            _icons.Dispose();
             _titleFont.Dispose();
             _bodyFont.Dispose();
             _buttonFont.Dispose();
         }
-
-        base.Dispose(disposing);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -339,7 +341,7 @@ internal sealed class MainForm : Form
     protected override void WndProc(ref Message m)
     {
         // 其他实例请求显示窗口：由本进程显示，跨进程 ShowWindow 会留下半截画面
-        if (m.Msg == SingleInstance.ShowMessage)
+        if (SingleInstance.ShowMessage != 0 && m.Msg == SingleInstance.ShowMessage)
         {
             ShowMainWindow();
             return;

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Win32;
 
 namespace GPGate;
@@ -16,9 +17,8 @@ internal static class CloseConfirmation
     {
         try
         {
-            // 值可能被外部写成非 int，统一按整数比较
             object? value = Registry.GetValue($@"HKEY_CURRENT_USER\{SettingsKey}", ValueName, 0);
-            return Convert.ToInt64(value ?? 0) != 1;
+            return Convert.ToInt64(value ?? 0, CultureInfo.InvariantCulture) != 1;
         }
         catch (Exception)
         {
