@@ -15,10 +15,10 @@ internal sealed class AboutForm : Form
 
     internal AboutForm()
     {
-        // 每次打开都按当前系统深浅色重新对齐
+        // 每次打开都按系统深浅色重设
         Application.SetColorMode(SystemColorMode.System);
 
-        _icon = LoadIcon();
+        _icon = AppInfo.LoadAppIcon();
         _logo = _icon.ToBitmap();
         _titleFont = new Font("Segoe UI Semibold", 15F);
 
@@ -33,7 +33,7 @@ internal sealed class AboutForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(400, 220);
+        ClientSize = new Size(400, 234);
 
         PictureBox logo = new()
         {
@@ -57,57 +57,46 @@ internal sealed class AboutForm : Form
             Location = new Point(TextX - 1, 48),
         };
 
+        LinkLabel sourceCode = CreateLink(
+            "源代码：GitHub",
+            new Point(TextX - 1, 72),
+            ("GitHub", "https://github.com/WhiteTeal55/GPGate"));
+
         Panel separator = new()
         {
-            Bounds = new Rectangle(MarginX, 86, TextWidth, 1),
+            Bounds = new Rectangle(MarginX, 100, TextWidth, 1),
             BackColor = SystemColors.ControlDark,
         };
 
-        LinkLabel attribution = new()
-        {
-            Text = "图标素材：GnuPG 官方 artwork · 许可：CC BY-SA 4.0",
-            AutoSize = false,
-            Bounds = new Rectangle(MarginX, 100, TextWidth, 20),
-            LinkBehavior = LinkBehavior.HoverUnderline,
-            UseMnemonic = false,
-        };
-        Color linkColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).ChipText;
-        attribution.LinkColor = attribution.ActiveLinkColor = attribution.VisitedLinkColor = linkColor;
-        AddLink(attribution, "GnuPG", "https://gnupg.org/");
-        AddLink(attribution, "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/");
-        attribution.LinkClicked += (_, e) =>
-        {
-            if (e.Link?.LinkData is string url)
-            {
-                using Process? process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
-        };
+        LinkLabel attribution = CreateLink(
+            "图标素材：GnuPG 官方 artwork · 许可：CC BY-SA 4.0",
+            new Point(MarginX, 114),
+            ("GnuPG", "https://gnupg.org/"),
+            ("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"));
 
         Label disclaimer = new()
         {
             Text = "与 GnuPG 项目无隶属关系。",
             AutoSize = true,
-            Location = new Point(MarginX, 128),
+            Location = new Point(MarginX, 142),
         };
 
-        Label copyright = new()
-        {
-            Text = AppInfo.Copyright,
-            AutoSize = true,
-            Location = new Point(MarginX - 1, 160),
-        };
+        LinkLabel copyright = CreateLink(
+            $"{AppInfo.Copyright} · 许可：MIT",
+            new Point(MarginX - 1, 174),
+            ("MIT", "https://github.com/WhiteTeal55/GPGate/blob/main/LICENSE"));
 
         Button ok = new()
         {
             Text = "确定",
-            Bounds = new Rectangle(292, 172, 88, 32),
+            Bounds = new Rectangle(292, 184, 88, 32),
         };
         ok.Click += (_, _) => Close();
 
         AcceptButton = ok;
         CancelButton = ok;
 
-        Controls.AddRange([logo, title, subtitle, separator, attribution, disclaimer, copyright, ok]);
+        Controls.AddRange([logo, title, subtitle, sourceCode, separator, attribution, disclaimer, copyright, ok]);
 
         ResumeLayout(false);
         PerformLayout();
@@ -115,24 +104,41 @@ internal sealed class AboutForm : Form
 
     protected override void Dispose(bool disposing)
     {
+        base.Dispose(disposing); // 先销毁窗口，避免图标提前消失
+
         if (disposing)
         {
             _titleFont.Dispose();
             _logo.Dispose();
-            Icon = null; // 先断开引用再释放图标
             _icon.Dispose();
         }
-
-        base.Dispose(disposing);
     }
 
-    private static void AddLink(LinkLabel label, string text, string url) =>
-        label.Links.Add(label.Text.IndexOf(text, StringComparison.Ordinal), text.Length, url);
-
-    private static Icon LoadIcon()
+    private static LinkLabel CreateLink(string text, Point location, params (string Text, string Url)[] links)
     {
-        using Stream stream = typeof(AboutForm).Assembly.GetManifestResourceStream("GPGate.app.ico")
-            ?? throw new InvalidOperationException("缺少图标资源 GPGate.app.ico");
-        return new Icon(stream, new Size(256, 256));
+        LinkLabel label = new()
+        {
+            Text = text,
+            AutoSize = true,
+            Location = location,
+            LinkBehavior = LinkBehavior.HoverUnderline,
+            UseMnemonic = false,
+        };
+
+        Color linkColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).ChipText;
+        label.LinkColor = label.ActiveLinkColor = label.VisitedLinkColor = linkColor;
+
+        foreach ((string linkText, string url) in links)
+            label.Links.Add(text.IndexOf(linkText, StringComparison.Ordinal), linkText.Length, url);
+
+        label.LinkClicked += (_, e) =>
+        {
+            if (e.Link?.LinkData is string url)
+            {
+                using Process? process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+        };
+
+        return label;
     }
 }

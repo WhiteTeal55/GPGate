@@ -20,8 +20,6 @@ internal sealed class MainForm : Form
     private const int DwmwcpRound = 2;
     private const int DwmwaBorderColor = 34;
 
-    private const string StartupError = "开机自启设置失败，可能需要管理员权限。";
-
     private const int CardWidth = 300;
     private const int CardHeight = 200;
 
@@ -136,16 +134,34 @@ internal sealed class MainForm : Form
         };
 
         _timer.Tick += (_, _) => RefreshStatus();
-        _timer.Start();
 
         ApplyTheme();
         RefreshStatus();
+    }
+
+    // 藏在托盘时不轮询，恢复窗口或打开托盘菜单时再查
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+
+        if (IsDisposed || Disposing)
+            return; // 销毁过程中定时器可能已释放
+
+        if (Visible)
+        {
+            RefreshStatus();
+            _timer.Start();
+            return;
+        }
+
+        _timer.Stop();
     }
 
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
 
+        SingleInstance.MarkMainWindow(Handle); // 供其他实例定位
         _icons.ApplyWindowIcon(Handle, _running, _lightTheme);
         // Win11 圆角交给 DWM
         int round = DwmwcpRound;
@@ -225,43 +241,10 @@ internal sealed class MainForm : Form
             return;
         }
 
-        bool confirmExit = true;
-        if (e.CloseReason == CloseReason.UserClosing)
+        if (e.CloseReason == CloseReason.UserClosing && !CloseConfirmation.ConfirmClose(Visible ? this : null))
         {
-            try
-            {
-                confirmExit = CloseConfirmationPreference.IsEnabled;
-            }
-            catch (Exception ex)
-            {
-                _ = Log.Error($"读取退出确认设置失败: {ex}");
-                Dialogs.Show(this, TaskDialogIcon.Error, ex.Message, "读取设置失败");
-            }
-        }
-
-        if (e.CloseReason == CloseReason.UserClosing && confirmExit)
-        {
-            using CloseConfirmationForm confirmation = new(_lightTheme);
-            if (confirmation.ShowDialog(this) != DialogResult.Yes)
-            {
-                e.Cancel = true;
-                return;
-            }
-
-            if (confirmation.DontAskAgain)
-            {
-                try
-                {
-                    CloseConfirmationPreference.SetEnabled(false);
-                }
-                catch (Exception ex)
-                {
-                    _ = Log.Error($"保存退出确认设置失败: {ex}");
-                    e.Cancel = true;
-                    Dialogs.Show(this, TaskDialogIcon.Error, ex.Message, "保存设置失败");
-                    return;
-                }
-            }
+            e.Cancel = true;
+            return;
         }
 
         base.OnFormClosing(e);
@@ -468,15 +451,15 @@ internal sealed class MainForm : Form
         {
             _closeAfterAction = false;
 
-            // 动作成功才退；失败就解锁界面留着，让用户看到错误
+            // 先解锁：退出确认可能被取消，失败时也要留在界面显示错误
+            Enabled = true;
+            Cursor = Cursors.Default;
+
             if (error is null)
             {
                 Close();
                 return;
             }
-
-            Enabled = true;
-            Cursor = Cursors.Default;
         }
 
         if (!ran)
@@ -488,14 +471,9 @@ internal sealed class MainForm : Form
             ShowError(error);
     }
 
-    private void ShowError(string message)
-    {
-        // 藏起来时先把窗口放出来
-        if (!Visible)
-            ShowMainWindow();
-
-        Dialogs.Show(this, TaskDialogIcon.Warning, message);
-    }
+    // 错误提示独立弹出，不把藏在托盘的主窗拉出来
+    private static void ShowError(string message) =>
+        Dialog.Show(null, TaskDialogIcon.Warning, message);
 
     private void SetBusy(bool busy) =>
         _start.Enabled = _kill.Enabled = _restart.Enabled = !busy;
@@ -515,25 +493,13 @@ internal sealed class MainForm : Form
         RefreshStatus(); // 打开前刷新，菜单项不过期
         _ = Startup.Sync();
 
-        bool exitConfirmationEnabled;
-        try
-        {
-            exitConfirmationEnabled = CloseConfirmationPreference.IsEnabled;
-        }
-        catch (Exception ex)
-        {
-            _ = Log.Error($"读取退出确认设置失败: {ex}");
-            ShowError($"读取退出确认设置失败：{ex.Message}");
-            return;
-        }
-
         TrayCommand command = _trayMenu.Show(new TrayMenuState(
             WindowVisible: Visible,
             Running: _running,
             Busy: Busy,
             StartupEnabled: Startup.IsEnabled,
             TrayOnStartup: Startup.TrayOnStartup,
-            ExitConfirmationEnabled: exitConfirmationEnabled,
+            CloseConfirmationEnabled: CloseConfirmation.IsEnabled,
             CanManageStartup: Startup.CanManageStartup,
             LightTheme: _lightTheme));
 
@@ -550,26 +516,19 @@ internal sealed class MainForm : Form
             case TrayCommand.Restart: RunAction("restart"); break;
             case TrayCommand.ToggleStartup:
                 if (!Startup.Toggle())
-                    ShowError(StartupError);
+                    ShowError(Startup.ErrorMessage);
                 break;
             case TrayCommand.ToggleStartupTray:
                 if (!Startup.ToggleTray())
-                    ShowError(StartupError);
+                    ShowError(Startup.ErrorMessage);
                 break;
-            case TrayCommand.ToggleExitConfirmation:
-                try
-                {
-                    CloseConfirmationPreference.SetEnabled(!exitConfirmationEnabled);
-                }
-                catch (Exception ex)
-                {
-                    _ = Log.Error($"保存退出确认设置失败: {ex}");
-                    ShowError($"保存退出确认设置失败：{ex.Message}");
-                }
+            case TrayCommand.ToggleCloseConfirmation:
+                if (!CloseConfirmation.Toggle())
+                    ShowError(CloseConfirmation.ErrorMessage);
                 break;
             case TrayCommand.OpenLog: OpenLogFolder(); break;
             case TrayCommand.About: ShowAbout(); break;
-            case TrayCommand.Exit: Close(); break;
+            case TrayCommand.Close: Close(); break;
         }
     }
 

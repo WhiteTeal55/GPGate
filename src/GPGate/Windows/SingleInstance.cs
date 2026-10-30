@@ -1,12 +1,16 @@
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace GPGate;
 
 // 单实例唤醒：新实例把前台权限转交给已有实例并投递消息，由它自己显示窗口
 internal static class SingleInstance
 {
+    // 窗口属性跨进程可读，不像标题会撞上同名窗口
+    internal const string MainWindowProp = "GPGate.MainWindow";
+
     internal static int ShowMessage { get; } = (int)RegisterWindowMessage($"{AppInfo.Name}.ShowWindow");
+
+    internal static void MarkMainWindow(IntPtr hwnd) => _ = SetProp(hwnd, MainWindowProp, (IntPtr)1);
 
     // 找到已有实例的主窗口并请求显示；窗口没真的显示出来也算失败
     internal static bool NotifyExisting()
@@ -30,13 +34,13 @@ internal static class SingleInstance
         return false;
     }
 
-    // 按标题找主窗口（含隐藏的），不比进程名：exe 改名后也能唤醒
+    // 按标记属性找主窗口（含隐藏的）
     private static IntPtr FindAppWindow()
     {
         IntPtr found = IntPtr.Zero;
         EnumWindows((hwnd, _) =>
         {
-            if (WindowFocus.ProcessIdOf(hwnd) == Environment.ProcessId || !IsMainWindow(hwnd))
+            if (WindowFocus.ProcessIdOf(hwnd) == Environment.ProcessId || GetProp(hwnd, MainWindowProp) == IntPtr.Zero)
                 return true;
 
             found = hwnd;
@@ -44,14 +48,6 @@ internal static class SingleInstance
         }, IntPtr.Zero);
 
         return found;
-    }
-
-    // 按标题排除同进程的关于窗口
-    private static bool IsMainWindow(IntPtr hwnd)
-    {
-        StringBuilder title = new(64);
-        GetWindowText(hwnd, title, title.Capacity);
-        return title.ToString() == AppInfo.Name;
     }
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -62,8 +58,11 @@ internal static class SingleInstance
     [DllImport("user32.dll")]
     private static extern void EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool SetProp(IntPtr hWnd, string name, IntPtr data);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern void GetWindowText(IntPtr hWnd, StringBuilder text, int maxCount);
+    private static extern IntPtr GetProp(IntPtr hWnd, string name);
 
     [DllImport("user32.dll")]
     private static extern void PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);

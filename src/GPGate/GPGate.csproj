@@ -15,7 +15,7 @@
     <DebugType>embedded</DebugType>
     <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
     <EnableSourceLink>false</EnableSourceLink>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Company>WhiteTeal55</Company>
     <Product>GPG 代理启停控制工具</Product>
     <Copyright>© 2026 WhiteTeal55</Copyright>

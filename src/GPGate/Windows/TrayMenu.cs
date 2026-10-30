@@ -11,10 +11,10 @@ internal enum TrayCommand
     Restart,
     ToggleStartup,
     ToggleStartupTray,
-    ToggleExitConfirmation,
+    ToggleCloseConfirmation,
     OpenLog,
     About,
-    Exit,
+    Close,
 }
 
 internal readonly record struct TrayMenuState(
@@ -23,7 +23,7 @@ internal readonly record struct TrayMenuState(
     bool Busy,
     bool StartupEnabled,
     bool TrayOnStartup,
-    bool ExitConfirmationEnabled,
+    bool CloseConfirmationEnabled,
     bool CanManageStartup,
     bool LightTheme);
 
@@ -87,14 +87,13 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
                 enabled: canStartup && state.StartupEnabled, checkedItem: state.TrayOnStartup);
             if (!canStartup)
                 Append(menu, TrayCommand.None, "开机自启需要管理员权限", enabled: false);
+            Append(menu, TrayCommand.ToggleCloseConfirmation, "退出时二次确认",
+                checkedItem: state.CloseConfirmationEnabled);
 
-            Separator(menu);
-            Append(menu, TrayCommand.ToggleExitConfirmation, "退出二次确认",
-                checkedItem: state.ExitConfirmationEnabled);
             Separator(menu);
             Append(menu, TrayCommand.OpenLog, "打开日志");
             Append(menu, TrayCommand.About, "关于");
-            Append(menu, TrayCommand.Exit, "退出");
+            Append(menu, TrayCommand.Close, "退出");
 
             GetCursorPos(out CursorPoint cursor);
 
@@ -124,17 +123,19 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
     private static void Separator(IntPtr menu) => AppendMenu(menu, MfSeparator, 0, null);
 
-    // 深色渲染按窗口开启（uxtheme 未公开入口）
+    // 深色渲染按窗口开启（uxtheme 未公开入口，缺失时按默认主题显示）
     private void ApplyTheme(bool lightTheme)
     {
-        SetApplicationTheme(lightTheme);
-        AllowDarkModeForWindow(Handle, !lightTheme);
-    }
-
-    internal static void SetApplicationTheme(bool lightTheme)
-    {
-        SetPreferredAppMode(lightTheme ? PreferredAppModeForceLight : PreferredAppModeForceDark);
-        FlushMenuThemes();
+        try
+        {
+            SetPreferredAppMode(lightTheme ? PreferredAppModeForceLight : PreferredAppModeForceDark);
+            FlushMenuThemes();
+            AllowDarkModeForWindow(Handle, !lightTheme);
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            // 系统不提供这些入口，菜单用默认配色
+        }
     }
 
     [StructLayout(LayoutKind.Sequential)]

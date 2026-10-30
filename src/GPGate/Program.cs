@@ -39,7 +39,7 @@ internal static class Program
             if (console)
                 Console.Error.WriteLine(Usage(shown));
             else
-                Dialogs.Show(null, TaskDialogIcon.Warning, $"无法识别的参数：{shown}", "参数错误", Usage(shown));
+                Dialog.Show(null, TaskDialogIcon.Warning, $"无法识别的参数：{shown}", "参数错误", Usage(shown));
             return 2;
         }
 
@@ -48,7 +48,11 @@ internal static class Program
         if (error is null)
             return 0;
 
-        Console.Error.WriteLine(error);
+        if (console)
+            Console.Error.WriteLine(error);
+        else
+            Dialog.Show(null, TaskDialogIcon.Warning, error); // 没有控制台时错误没地方写
+
         return 1;
     }
 
@@ -86,7 +90,7 @@ internal static class Program
             }
 
             _ = Log.Warn("已有实例但未找到主窗口");
-            Dialogs.Show(null, TaskDialogIcon.Information, "没能唤出已运行实例的窗口，请在任务栏或托盘里找一下，必要时结束进程后重试。", "已有一个 GPGate 在运行");
+            Dialog.Show(null, TaskDialogIcon.Information, "没能唤出已运行实例的窗口，请在任务栏或托盘里找一下，必要时结束进程后重试。", "已有一个 GPGate 在运行");
             return 1;
         }
 
@@ -112,7 +116,7 @@ internal static class Program
     private static void ReportGuiError(Exception ex)
     {
         _ = Log.Error($"界面异常: {ex}");
-        Dialogs.Show(null, TaskDialogIcon.Error, ex.Message, "程序出错", $"日志：{Log.FilePath}");
+        Dialog.Show(null, TaskDialogIcon.Error, ex.Message, "程序出错", $"日志：{Log.FilePath}");
     }
 
     [DllImport("kernel32.dll", SetLastError = true)]

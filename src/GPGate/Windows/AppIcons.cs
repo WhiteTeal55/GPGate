@@ -21,13 +21,13 @@ internal sealed class AppIcons : IDisposable
     {
         Size small = SystemInformation.SmallIconSize;
         Size big = new(bigSize, bigSize);
-        Small = Load("GPGate.app.ico", small);
-        Large = Load("GPGate.app.ico", SystemInformation.IconSize);
-        OffSmall = Load("GPGate.app-off.ico", small);
-        OffLightSmall = Load("GPGate.app-off-light.ico", small);
-        Big = Load("GPGate.app.ico", big);
-        BigOffDark = Load("GPGate.app-off.ico", big);
-        BigOffLight = Load("GPGate.app-off-light.ico", big);
+        Small = Load(AppInfo.IconResource, small);
+        Large = Load(AppInfo.IconResource, SystemInformation.IconSize);
+        OffSmall = Load(AppInfo.OffIconResource, small);
+        OffLightSmall = Load(AppInfo.OffLightIconResource, small);
+        Big = Load(AppInfo.IconResource, big);
+        BigOffDark = Load(AppInfo.OffIconResource, big);
+        BigOffLight = Load(AppInfo.OffLightIconResource, big);
     }
 
     internal Icon Small { get; }
@@ -56,13 +56,17 @@ internal sealed class AppIcons : IDisposable
         Color dot = running ? Palette.Accent : lightTheme ? Palette.Light.Muted : Palette.Dark.Muted;
         Color ring = lightTheme ? Color.FromArgb(70, 0, 0, 0) : Color.FromArgb(235, 255, 255, 255);
 
+        Icon small = Compose(Small, dot, ring);
+        Icon large = Compose(Large, dot, ring);
+
+        SendMessage(hwnd, WmSetIcon, IntPtr.Zero, small.Handle);
+        SendMessage(hwnd, WmSetIcon, (IntPtr)1, large.Handle);
+
+        // 先换新图标再释放旧的，避免窗口短暂持有已销毁的句柄
         _windowSmall?.Dispose();
         _windowLarge?.Dispose();
-        _windowSmall = Compose(Small, dot, ring);
-        _windowLarge = Compose(Large, dot, ring);
-
-        SendMessage(hwnd, WmSetIcon, IntPtr.Zero, _windowSmall.Handle);
-        SendMessage(hwnd, WmSetIcon, (IntPtr)1, _windowLarge.Handle);
+        _windowSmall = small;
+        _windowLarge = large;
     }
 
     // 只记录自己创建的图标，Dispose 时统一释放

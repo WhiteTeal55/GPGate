@@ -8,10 +8,11 @@ internal static class ActionGate
     // 拿不到锁立刻返回，不排队
     public static (bool Ran, string? Error) TryRun(string command)
     {
-        using Mutex gate = new(false, LockName);
-        bool owned;
+        Mutex? gate = null;
+        bool owned = false;
         try
         {
+            gate = new Mutex(false, LockName);
             owned = gate.WaitOne(0);
         }
         catch (AbandonedMutexException)
@@ -21,12 +22,16 @@ internal static class ActionGate
         catch (Exception ex)
         {
             // 例如权限受限，按执行失败处理
+            gate?.Dispose();
             _ = Log.Error($"获取命令锁失败: {ex.Message}");
             return (true, $"[错误] 获取命令锁失败: {ex.Message}");
         }
 
         if (!owned)
+        {
+            gate?.Dispose();
             return (false, $"[错误] 另一个 {AppInfo.Name} 正在执行命令");
+        }
 
         try
         {
@@ -41,7 +46,8 @@ internal static class ActionGate
         }
         finally
         {
-            gate.ReleaseMutex();
+            gate?.ReleaseMutex();
+            gate?.Dispose();
         }
     }
 

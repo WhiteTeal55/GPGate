@@ -9,7 +9,10 @@ internal static class Startup
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     private static readonly string ValueName = AppInfo.Name;
 
-    // 最近一次写入是否成功；失败时托盘菜单提示需要管理员权限
+    // 写注册表失败时的提示，托盘菜单用
+    internal const string ErrorMessage = "开机自启设置失败，可能需要管理员权限。";
+
+    // 最近一次写入是否成功
     internal static bool CanManageStartup { get; private set; } = true;
 
     private static object? ReadValue(string key)
@@ -37,9 +40,9 @@ internal static class Startup
 
     private static string Command(bool tray) => $"\"{Environment.ProcessPath}\"{(tray ? "" : " /s")}";
 
-    // 命令带 /s 表示只启动 GPG、不开托盘
+    // 以 /s 结尾表示只启动 GPG、不开托盘
     private static bool HasTray(string? command) =>
-        command is { } text && !text.Contains(" /s", StringComparison.OrdinalIgnoreCase);
+        command is { } text && !text.TrimEnd().EndsWith(" /s", StringComparison.OrdinalIgnoreCase);
 
     internal static bool Enable(bool tray) => Guard(() =>
     {

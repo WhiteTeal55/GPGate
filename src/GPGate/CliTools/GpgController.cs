@@ -95,18 +95,21 @@ internal static class GpgController
                 RedirectStandardOutput = true,
             })!;
 
+            // 先异步读，避免输出量大时和 WaitForExit 互锁
+            Task<string> output = ReadTextAsync(process.StandardOutput);
+
             if (!process.WaitForExit(ExecTimeoutMs))
             {
-                process.Kill();
+                Kill(process);
                 return null;
             }
 
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            return process.ExitCode == 0 && output.Length > 0 ? output : null;
+            string text = output.Wait(1000) ? output.Result.Trim() : "";
+            return process.ExitCode == 0 && text.Length > 0 ? text : null;
         }
-        catch (Win32Exception)
+        catch (Exception)
         {
-            return null;
+            return null; // 找不到、无法启动、读取失败都当作无结果
         }
     }
 
@@ -127,20 +130,28 @@ internal static class GpgController
             })!;
 
             // 提前异步读 stderr，防管道写满；守护进程会继承管道不放，只等 1 秒
-            Task<string> stderr = ReadStderrAsync(process);
+            Task<string> stderr = ReadTextAsync(process.StandardError);
 
             // 卡住时不能一直占着全局锁
             if (!process.WaitForExit(ExecTimeoutMs))
             {
-                process.Kill();
+                Kill(process);
                 return Log.Warn($"{description} 超时，已强制结束");
             }
 
+            // 成功后不等守护进程关闭管道，失败时最多等 1 秒收集 stderr
+            bool collected = process.ExitCode != 0 ? stderr.Wait(1000) : stderr.IsCompletedSuccessfully;
+            string detail = collected ? stderr.Result.Trim() : "";
+
             if (process.ExitCode == 0)
+            {
+                if (detail.Length > 0)
+                    _ = Log.Warn($"{description} 输出: {detail}");
+
                 return null;
+            }
 
             // 带上 stderr，否则只剩一个退出码
-            string detail = stderr.Wait(1000) ? stderr.Result.Trim() : "";
             return Log.Warn($"{description} 返回非零退出码: {process.ExitCode}{(detail.Length == 0 ? "" : "，" + detail)}");
         }
         catch (Win32Exception ex)
@@ -149,12 +160,25 @@ internal static class GpgController
         }
     }
 
-    // 读取异常（进程已释放）按空处理
-    private static async Task<string> ReadStderrAsync(Process process)
+    // 结束可能已经退出的进程，失败不抛
+    private static void Kill(Process process)
     {
         try
         {
-            return await process.StandardError.ReadToEndAsync();
+            process.Kill();
+        }
+        catch (Exception)
+        {
+            // 已退出或无权结束
+        }
+    }
+
+    // 读取异常（进程已释放）按空处理
+    private static async Task<string> ReadTextAsync(StreamReader reader)
+    {
+        try
+        {
+            return await reader.ReadToEndAsync();
         }
         catch (Exception)
         {
