@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace GPGate;
 
@@ -82,6 +85,14 @@ internal static class Program
 
     private static int StartGui()
     {
+        if (!IsElevated())
+        {
+            if (SingleInstance.NotifyExisting())
+                return 0;
+
+            return StartElevatedGui();
+        }
+
         using var mutex = new Mutex(true, GuiMutexName, out bool createdNew);
         if (!createdNew)
         {
@@ -114,6 +125,43 @@ internal static class Program
         {
             // 启动期异常走不到 ThreadException，这里补一次提示
             ReportGuiError(ex);
+            return 1;
+        }
+    }
+
+    private static bool IsElevated()
+    {
+        using WindowsIdentity identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+    }
+
+    private static int StartElevatedGui()
+    {
+        string? path = Environment.ProcessPath;
+        if (path is null)
+        {
+            _ = Log.Error("无法获取程序路径，不能以管理员身份启动图形界面");
+            return 1;
+        }
+
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo(path)
+            {
+                Arguments = "/g",
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+            return process is null ? 1 : 0;
+        }
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            return 1; // 用户取消 UAC
+        }
+        catch (Win32Exception ex)
+        {
+            _ = Log.Error($"无法以管理员身份启动图形界面: {ex.Message}");
+            Dialog.Show(null, TaskDialogIcon.Error, "无法以管理员身份启动图形界面。", "启动失败");
             return 1;
         }
     }

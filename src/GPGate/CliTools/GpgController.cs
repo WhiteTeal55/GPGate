@@ -1,12 +1,23 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Management;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace GPGate;
 
 // GPG 启停控制，命令行与 GUI 共用。
 internal static class GpgController
 {
-    private static readonly string[] GpgProcessNames = ["gpg-agent", "keyboxd", "scdaemon"];
+    private static readonly HashSet<string> GpgProcessNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "gpg-agent.exe",
+        "keyboxd.exe",
+        "scdaemon.exe",
+    };
+
+    private const uint SnapshotProcesses = 0x00000002;
+    private const int ErrorNoMoreFiles = 18;
     private const int ExecTimeoutMs = 10_000;
     private const int MaxDetailChars = 300;
 
@@ -16,7 +27,7 @@ internal static class GpgController
     {
         try
         {
-            bool running = GpgProcessNames.Any(IsProcessRunning);
+            bool running = IsAnyProcessRunning(GpgProcessNames);
             _queryFailed = false;
             return running;
         }
@@ -33,14 +44,154 @@ internal static class GpgController
         }
     }
 
+    public static IDisposable WatchProcessChanges(Action<bool> statusChanged) =>
+        new GpgProcessMonitor(statusChanged);
+
+    private sealed class GpgProcessMonitor : IDisposable
+    {
+        private readonly object _sync = new();
+        private readonly Action<bool> _statusChanged;
+        private readonly ManagementEventWatcher _started;
+        private readonly ManagementEventWatcher _stopped;
+        private bool _running;
+        private bool _disposed;
+
+        public GpgProcessMonitor(Action<bool> statusChanged)
+        {
+            ArgumentNullException.ThrowIfNull(statusChanged);
+            _statusChanged = statusChanged;
+            _running = IsRunning();
+
+            string filter = string.Join(" OR ", GpgProcessNames.Select(name => $"ProcessName = '{name}'"));
+            ManagementScope scope = new(@"\\.\root\CIMV2");
+            _started = new ManagementEventWatcher(scope,
+                new WqlEventQuery($"SELECT * FROM Win32_ProcessStartTrace WHERE {filter}"));
+            _stopped = new ManagementEventWatcher(scope,
+                new WqlEventQuery($"SELECT * FROM Win32_ProcessStopTrace WHERE {filter}"));
+            _started.EventArrived += OnProcessChanged;
+            _stopped.EventArrived += OnProcessChanged;
+
+            try
+            {
+                _started.Start();
+                _stopped.Start();
+                RefreshStatus(notifyEvenIfUnchanged: true);
+            }
+            catch
+            {
+                _started.Dispose();
+                _stopped.Dispose();
+                throw;
+            }
+        }
+
+        private void OnProcessChanged(object sender, EventArrivedEventArgs e) =>
+            RefreshStatus(notifyEvenIfUnchanged: false);
+
+        private void RefreshStatus(bool notifyEvenIfUnchanged)
+        {
+            lock (_sync)
+            {
+                if (_disposed)
+                    return;
+
+                bool running = IsRunning();
+                if (!notifyEvenIfUnchanged && running == _running)
+                    return;
+
+                _running = running;
+                _statusChanged(running);
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (_sync)
+            {
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+            }
+
+            _started.EventArrived -= OnProcessChanged;
+            _stopped.EventArrived -= OnProcessChanged;
+            _started.Dispose();
+            _stopped.Dispose();
+        }
+    }
+
     private static bool IsProcessRunning(string name)
     {
-        Process[] found = Process.GetProcessesByName(name);
-        foreach (Process process in found)
-            process.Dispose();
-
-        return found.Length > 0;
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase) { name + ".exe" };
+        return IsAnyProcessRunning(names);
     }
+
+    private static bool IsAnyProcessRunning(HashSet<string> names)
+    {
+        using ProcessSnapshotHandle snapshot = CreateToolhelp32Snapshot(SnapshotProcesses, 0);
+        if (snapshot.IsInvalid)
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+
+        ProcessEntry32 entry = new() { dwSize = (uint)Marshal.SizeOf<ProcessEntry32>() };
+        if (!Process32First(snapshot, ref entry))
+        {
+            int error = Marshal.GetLastWin32Error();
+            if (error == ErrorNoMoreFiles)
+                return false;
+
+            throw new Win32Exception(error);
+        }
+
+        do
+        {
+            if (names.Contains(entry.szExeFile))
+                return true;
+        }
+        while (Process32Next(snapshot, ref entry));
+
+        int nextError = Marshal.GetLastWin32Error();
+        if (nextError != ErrorNoMoreFiles)
+            throw new Win32Exception(nextError);
+
+        return false;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry32
+    {
+        public uint dwSize;
+        public uint cntUsage;
+        public uint th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID;
+        public uint cntThreads;
+        public uint th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szExeFile;
+    }
+
+    private sealed class ProcessSnapshotHandle() : SafeHandleZeroOrMinusOneIsInvalid(true)
+    {
+        protected override bool ReleaseHandle() => CloseHandle(handle);
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern ProcessSnapshotHandle CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", EntryPoint = "Process32FirstW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32First(ProcessSnapshotHandle snapshot, ref ProcessEntry32 entry);
+
+    [DllImport("kernel32.dll", EntryPoint = "Process32NextW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32Next(ProcessSnapshotHandle snapshot, ref ProcessEntry32 entry);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     public static string? Toggle() => IsRunning() ? Kill() : Start();
 

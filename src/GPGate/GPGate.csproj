@@ -30,4 +30,8 @@
     <EmbeddedResource Include="Assets\app-off-light.ico" LogicalName="GPGate.app-off-light.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
 </Project>

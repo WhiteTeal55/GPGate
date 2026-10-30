@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Management;
 using System.Runtime.InteropServices;
 
 namespace GPGate;
@@ -43,10 +44,10 @@ internal sealed class MainForm : Form
     private readonly FlatButton _logButton;
     private readonly FlatButton _info;
 
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
     private readonly NotifyIcon _tray;
     private readonly TrayMenu _trayMenu = new();
     private readonly AppIcons _icons;
+    private IDisposable? _processMonitor;
 
     private Palette _theme = Palette.Dark;
     private bool _lightTheme;
@@ -133,8 +134,6 @@ internal sealed class MainForm : Form
                 ShowMainWindow();
         };
 
-        _timer.Tick += (_, _) => RefreshStatus();
-
         ApplyTheme();
         RefreshStatus();
     }
@@ -145,16 +144,10 @@ internal sealed class MainForm : Form
         base.OnVisibleChanged(e);
 
         if (IsDisposed || Disposing)
-            return; // 销毁过程中定时器可能已释放
+            return;
 
         if (Visible)
-        {
             RefreshStatus();
-            _timer.Start();
-            return;
-        }
-
-        _timer.Stop();
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -162,6 +155,7 @@ internal sealed class MainForm : Form
         base.OnHandleCreated(e);
 
         SingleInstance.MarkMainWindow(Handle); // 供其他实例定位
+        SingleInstance.AllowShowMessageFromLowerIntegrity(Handle);
         _icons.ApplyWindowIcon(Handle, _running, _lightTheme);
         // Win11 圆角交给 DWM
         int round = DwmwcpRound;
@@ -174,6 +168,16 @@ internal sealed class MainForm : Form
     {
         base.OnShown(e);
         _icons.ApplyWindowIcon(Handle, _running, _lightTheme);
+
+        try
+        {
+            _processMonitor ??= GpgController.WatchProcessChanges(UpdateRunningStatus);
+        }
+        catch (Exception ex) when (ex is ManagementException or COMException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _ = Log.Error($"无法监听 GPG 进程状态变化: {ex}");
+            ShowError("无法监听 GPG 进程状态变化，界面状态可能不会自动更新。\n\n" + ex.Message);
+        }
     }
 
     private void ApplyLayout()
@@ -264,7 +268,7 @@ internal sealed class MainForm : Form
     {
         if (disposing)
         {
-            _timer.Dispose();
+            _processMonitor?.Dispose();
             _tray.Dispose(); // 顺带移除托盘图标
             _trayMenu.Dispose();
             Icon = null; // 先断开引用再释放图标
@@ -354,7 +358,7 @@ internal sealed class MainForm : Form
             return;
         }
 
-        // 主题切换即时换色，不等下一次轮询
+        // 主题切换即时换色
         if (m.Msg == WmSettingChange && IsImmersiveColorSet(m.LParam))
         {
             ApplyTheme();
@@ -408,10 +412,29 @@ internal sealed class MainForm : Form
         ApplyState();
     }
 
-    // 状态没变就不动托盘图标，省得每 2 秒惊动 shell
+    // 状态没变就不动托盘图标，避免无谓地通知 shell
     private void RefreshStatus()
     {
-        bool running = GpgController.IsRunning();
+        UpdateRunningStatus(GpgController.IsRunning());
+    }
+
+    private void UpdateRunningStatus(bool running)
+    {
+        if (IsDisposed || Disposing)
+            return;
+
+        if (InvokeRequired)
+        {
+            try
+            {
+                _ = BeginInvoke(() => UpdateRunningStatus(running));
+            }
+            catch (InvalidOperationException) when (IsDisposed || Disposing)
+            {
+            }
+            return;
+        }
+
         if (running == _running)
             return;
 

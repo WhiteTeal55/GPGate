@@ -12,6 +12,13 @@ internal static class SingleInstance
 
     internal static void MarkMainWindow(IntPtr hwnd) => _ = SetProp(hwnd, MainWindowProp, (IntPtr)1);
 
+    internal static void AllowShowMessageFromLowerIntegrity(IntPtr hwnd)
+    {
+        ChangeFilterStruct filter = new() { Size = (uint)Marshal.SizeOf<ChangeFilterStruct>() };
+        if (!ChangeWindowMessageFilterEx(hwnd, (uint)ShowMessage, MessageFilterAllow, ref filter))
+            _ = Log.Warn($"允许低完整性实例唤醒主窗口失败: {Marshal.GetLastWin32Error()}");
+    }
+
     // 找到已有实例的主窗口并请求显示；窗口没真的显示出来也算失败
     internal static bool NotifyExisting()
     {
@@ -50,8 +57,21 @@ internal static class SingleInstance
         return found;
     }
 
+    private const uint MessageFilterAllow = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ChangeFilterStruct
+    {
+        public uint Size;
+        public uint ExtStatus;
+    }
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern uint RegisterWindowMessage(string message);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ChangeWindowMessageFilterEx(IntPtr hwnd, uint message, uint action, ref ChangeFilterStruct changeFilterStruct);
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
