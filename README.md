@@ -1,6 +1,6 @@
 # GPGate
 
-用于 `gpg-agent` 与 `keyboxd` 的启停管理，封装为单条命令。
+用于 `gpg-agent`、`keyboxd` 与 `scdaemon` 的启停管理，封装为单条命令。
 
 ## 用法
 
@@ -72,7 +72,7 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 
 ## 说明
 
-启动会拉起 `gpg-agent` 与 `keyboxd`，终止则一并结束。单个子进程超过 10 秒未退出即判定为失败。
+启动会拉起 `gpg-agent`、`keyboxd` 与 `scdaemon`，终止则一并结束。启用了 `disable-scdaemon` 时跳过 `scdaemon`。单个子进程超过 10 秒未退出即判定为失败。
 
 同时只允许一个操作，已有操作在跑时新的调用立即返回失败，不排队。
 

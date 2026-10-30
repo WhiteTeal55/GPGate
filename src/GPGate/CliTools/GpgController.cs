@@ -48,18 +48,51 @@ internal static class GpgController
 
     public static string? Start()
     {
-        if (Exec("gpg-connect-agent", "/bye", "启动 gpg-agent") is { } failed)
-            return failed;
+        // keyboxd 与 scdaemon 都依赖 agent，agent 起不来就不必继续
+        if (Exec("gpg-connect-agent", "/bye", "启动 gpg-agent") is { } agentFailed)
+            return agentFailed;
 
+        // 两者互不影响：都尝试，报第一个错误
         // gpg-connect-agent 会自己等 agent 起来
-        return Exec("gpg-connect-agent", "--keyboxd /bye", "启动 keyboxd");
+        string? keyboxdFailed = Exec("gpg-connect-agent", "--keyboxd /bye", "启动 keyboxd");
+        return StartScdaemon() ?? keyboxdFailed;
     }
+
+    // 返回 null 表示成功或用户已禁用
+    private static string? StartScdaemon()
+    {
+        // 用户禁用时跳过
+        if (IsScdaemonDisabled())
+        {
+            _ = Log.Info("scdaemon 已禁用，跳过");
+            return null;
+        }
+
+        // 只能由 agent 拉起，GETINFO 不碰读卡器
+        if (Exec("gpg-connect-agent", "\"SCD GETINFO version\" /bye", "启动 scdaemon") is { } scdaemonFailed)
+            return scdaemonFailed;
+
+        // 协议层出错时退出码仍是 0，改看进程
+        return IsProcessRunning("scdaemon") ? null : Log.Warn("scdaemon 未能启动");
+    }
+
+    // 行格式 name:flags:…:argdef:value，disable-scdaemon 的 value 为 1 即禁用
+    private static bool IsScdaemonDisabled() =>
+        Exec("gpgconf", "--list-options gpg-agent", "读取 gpg-agent 选项", out string options) is null
+        && options.Split('\n').Any(line =>
+            line.StartsWith("disable-scdaemon:", StringComparison.Ordinal) && line.TrimEnd().EndsWith(":1", StringComparison.Ordinal));
 
     public static string? Restart() => Kill() ?? Start();
 
     // 成功返回 null
-    private static string? Exec(string appName, string arguments, string description)
+    private static string? Exec(string appName, string arguments, string description) =>
+        Exec(appName, arguments, description, out _);
+
+    // 成功返回 null，output 带出 stdout
+    private static string? Exec(string appName, string arguments, string description, out string output)
     {
+        output = string.Empty;
+
         string? path = FindTool(appName);
         if (path is null)
             return Log.Error($"未找到 {appName}.exe，请检查 GPG 是否已安装并在 PATH 中");
@@ -70,10 +103,13 @@ internal static class GpgController
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                // 应答走 stdout，重定向防漏到控制台
+                RedirectStandardOutput = true,
                 RedirectStandardError = true,
             })!;
 
             // 先异步读，防管道写满
+            Task<string> stdout = ReadTextAsync(process.StandardOutput);
             Task<string> stderr = ReadTextAsync(process.StandardError);
 
             // 卡住时不能一直占着全局锁
@@ -83,7 +119,7 @@ internal static class GpgController
                 return Log.Warn($"{description} 超时，已强制结束");
             }
 
-            // 成功不等管道关闭，失败最多等 1 秒
+            // stderr：成功不等管道关闭，失败最多等 1 秒
             bool collected = process.ExitCode != 0 ? stderr.Wait(1000) : stderr.IsCompletedSuccessfully;
             string detail = collected ? stderr.Result.Trim() : "";
             if (detail.Length > MaxDetailChars)
@@ -95,6 +131,7 @@ internal static class GpgController
                 if (detail.Length > 0)
                     _ = Log.Info($"{description} 输出: {detail}");
 
+                output = stdout.Wait(1000) ? stdout.Result : "";
                 return null;
             }
 
