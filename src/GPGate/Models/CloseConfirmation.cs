@@ -36,8 +36,9 @@ internal static class CloseConfirmation
 
         using CloseConfirmationForm form = new();
 
-        // 主窗藏在托盘时没有可见 owner，按屏幕居中
+        // 托盘里没有可见 owner：居中屏幕并给个任务栏按钮
         form.StartPosition = owner is null ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
+        form.ShowInTaskbar = owner is null;
         DialogResult result = owner is null ? form.ShowDialog() : form.ShowDialog(owner);
         if (result != DialogResult.Yes)
             return false;

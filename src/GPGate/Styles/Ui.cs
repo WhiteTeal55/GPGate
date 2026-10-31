@@ -39,6 +39,9 @@ internal sealed class Palette
     {
         Background = Color.FromArgb(26, 27, 31),
         Border = Color.FromArgb(48, 50, 57),
+        FieldBorder = Color.FromArgb(74, 77, 85),
+        FieldBackground = Color.FromArgb(50, 50, 50),
+        Separator = Color.FromArgb(74, 74, 74),
         Text = Color.FromArgb(243, 244, 246),
         Muted = Color.FromArgb(138, 143, 152),
         GhostFill = Color.FromArgb(40, 42, 48),
@@ -55,6 +58,9 @@ internal sealed class Palette
     {
         Background = Color.White,
         Border = Color.FromArgb(232, 234, 238),
+        FieldBorder = Color.FromArgb(108, 114, 124),
+        FieldBackground = Color.White,
+        Separator = Color.FromArgb(160, 160, 160),
         Text = Color.FromArgb(22, 24, 29),
         Muted = Color.FromArgb(108, 114, 124),
         GhostFill = Color.FromArgb(243, 244, 247),
@@ -69,6 +75,9 @@ internal sealed class Palette
 
     public Color Background { get; init; }
     public Color Border { get; init; }
+    public Color FieldBorder { get; init; }
+    public Color FieldBackground { get; init; }
+    public Color Separator { get; init; }
     public Color Text { get; init; }
     public Color Muted { get; init; }
     public Color GhostFill { get; init; }

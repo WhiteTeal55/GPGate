@@ -46,7 +46,7 @@ internal sealed class LinkButton : Button
     {
         Size icon = Measure(_icon, _iconFont);
         Size text = Measure(Text, Font);
-        return new Size(icon.Width + IconGap + text.Width, Math.Max(icon.Height, text.Height));
+        return new Size(IconOffset + text.Width, Math.Max(icon.Height, text.Height));
     }
 
     protected override void Dispose(bool disposing)
@@ -57,8 +57,8 @@ internal sealed class LinkButton : Button
             _iconFont.Dispose();
     }
 
-    // 图标+间距的宽度：调用方据此把文字对齐到内容列，箭头允许溢出到左侧
-    internal int GetIconOffset() => Measure(_icon, _iconFont).Width + IconGap;
+    // 图标占位按 4px 取整，免得展开/收起的箭头差 1px 让文字左右跳；调用方据此对齐内容列
+    internal int IconOffset => (Measure(_icon, _iconFont).Width + 3) / 4 * 4 + IconGap;
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -85,7 +85,7 @@ internal sealed class LinkButton : Button
         TextRenderer.DrawText(g, _icon, _iconFont, new Rectangle(0, 0, iconSize.Width, Height),
             ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
-        Rectangle textRect = new(iconSize.Width + IconGap, 0, textSize.Width, Height);
+        Rectangle textRect = new(IconOffset, 0, textSize.Width, Height);
         TextRenderer.DrawText(g, Text, Font, textRect, ForeColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 

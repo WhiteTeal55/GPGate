@@ -8,15 +8,21 @@ internal sealed class DialogForm : Form
     private const int ContentWidth = DialogWidth - ContentLeft - 24;
     private const int DetailsHeight = 110;
 
+    // 补齐 Label 的内边距和字形留白，链接文字才和上方文字左对齐
+    private const int LinkTextInset = 3;
+
     private readonly Bitmap? _icon;
     private readonly Icon _windowIcon;
     private readonly Font _headingFont = new("Segoe UI Semibold", 10F);
+    private readonly TextBox? _details;
 
     internal DialogForm(TaskDialogIcon icon, string text, string? heading, string? details)
     {
         SuspendLayout();
 
-        Application.SetColorMode(SystemColorMode.System); // 每次打开都按系统深浅色重设
+        ThemeRefresh.EnsureColorMode();
+
+        Palette palette = Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light;
 
         _windowIcon = AppInfo.LoadAppIcon();
 
@@ -25,7 +31,6 @@ internal sealed class DialogForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -68,7 +73,6 @@ internal sealed class DialogForm : Form
         y += textSize.Height;
 
         LinkButton? link = null;
-        TextBox? detailsBox = null;
         if (details is not null)
         {
             // 链接样式展开器：自绘成按钮，chevron 与文字同行，也不会被双击取词
@@ -76,29 +80,33 @@ internal sealed class DialogForm : Form
             {
                 Text = "显示详细信息",
                 Icon = "\uE76C", // ChevronRight
-                ForeColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).ChipText,
+                ForeColor = palette.ChipText,
             };
-            // 文字对齐内容列，chevron 溢出到左侧；左缘在 Load 里按实际 DPI 校正
+            // 文字对齐内容列，chevron 溢到左侧；左缘在 Load 里按实际 DPI 校正
             link.Location = new Point(ContentLeft, y + 10);
             Controls.Add(link);
 
-            detailsBox = new TextBox
+            // 外框由 OnPaint 画：文本框自带的边框不跟深浅色
+            _details = new DetailsBox
             {
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
-                BorderStyle = BorderStyle.FixedSingle,
-                Bounds = new Rectangle(ContentLeft, link.Bottom + 3, ContentWidth, DetailsHeight),
+                BorderStyle = BorderStyle.None,
+                Bounds = new Rectangle(ContentLeft + 1, link.Bottom + 4, ContentWidth - 2, DetailsHeight - 2),
                 Visible = false,
                 Text = details,
+                // 只读文本框默认是灰底
+                BackColor = palette.FieldBackground,
+                ForeColor = palette.Text,
             };
-            Controls.Add(detailsBox);
+            Controls.Add(_details);
         }
 
         Panel separator = new()
         {
             Bounds = new Rectangle(0, (link?.Bottom ?? y) + 20, DialogWidth, 1),
-            BackColor = SystemColors.ControlDark,
+            BackColor = palette.Separator,
         };
         Controls.Add(separator);
 
@@ -127,7 +135,7 @@ internal sealed class DialogForm : Form
             Load += (_, _) => AlignLink();
         }
 
-        void AlignLink() => link!.Left = LogicalToDeviceUnits(ContentLeft) - link.GetIconOffset();
+        void AlignLink() => link!.Left = LogicalToDeviceUnits(ContentLeft) - link.IconOffset + LogicalToDeviceUnits(LinkTextInset);
 
         // 原生 TaskDialog 展开/收起是瞬间换高
         void Toggle()
@@ -136,14 +144,36 @@ internal sealed class DialogForm : Form
             link!.Icon = expanded ? "\uE70D" : "\uE76C"; // ChevronDown / ChevronRight
             link.Text = expanded ? "隐藏详细信息" : "显示详细信息";
             AlignLink();
-            detailsBox!.Visible = expanded;
+            _details!.Visible = expanded;
+            Invalidate(Rectangle.Inflate(_details.Bounds, 1, 1)); // 外框跟着显示/擦掉
 
             int gap = LogicalToDeviceUnits(12);
             separator.Top = link.Bottom + LogicalToDeviceUnits(20)
-                + (expanded ? detailsBox.Height + gap : 0);
+                + (expanded ? _details.Height + 2 + gap : 0);
             ok.Top = separator.Bottom + gap;
             ClientSize = new Size(ClientSize.Width, ok.Bottom + gap);
         }
+    }
+
+    // 详细信息框的 1px 外框，颜色跟系统深浅色走
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+
+        if (_details is not { Visible: true } details)
+            return;
+
+        Rectangle frame = Rectangle.Inflate(details.Bounds, 1, 1);
+        using Pen pen = new((Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).FieldBorder);
+        e.Graphics.DrawRectangle(pen, frame.X, frame.Y, frame.Width - 1, frame.Height - 1);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (ThemeRefresh.TryApply(this, m))
+            return;
+
+        base.WndProc(ref m);
     }
 
     protected override void Dispose(bool disposing)

@@ -10,7 +10,6 @@ internal sealed class MainForm : Form
     private static readonly string InfoText = $"v{AppInfo.Version}\n{AppInfo.Copyright}";
 
     private const int SwRestore = 9;
-    private const int WmSettingChange = 0x001A;
     private const int WmSysCommand = 0x0112;
     private const int ScMinimize = 0xF020;
     private const int WmNcHitTest = 0x0084;
@@ -22,6 +21,9 @@ internal sealed class MainForm : Form
 
     private const int CardWidth = 300;
     private const int CardHeight = 200;
+
+    private const int VisibleRefreshMs = 2000;
+    private const int HiddenRefreshMs = 5000;
 
     // 设计值都是 96 DPI 下的尺寸，按 _scale 换算
     private float _scale = 1f;
@@ -43,7 +45,7 @@ internal sealed class MainForm : Form
     private readonly FlatButton _logButton;
     private readonly FlatButton _info;
 
-    private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
+    private readonly System.Windows.Forms.Timer _timer = new() { Interval = VisibleRefreshMs };
     private readonly NotifyIcon _tray;
     private readonly TrayMenu _trayMenu = new();
     private readonly AppIcons _icons;
@@ -134,12 +136,12 @@ internal sealed class MainForm : Form
         };
 
         _timer.Tick += (_, _) => RefreshStatus();
+        _timer.Start(); // 常驻，收起后也继续刷新
 
         ApplyTheme();
         RefreshStatus();
     }
 
-    // 藏在托盘时不轮询，恢复窗口或打开托盘菜单时再查
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
@@ -148,13 +150,9 @@ internal sealed class MainForm : Form
             return; // 销毁过程中定时器可能已释放
 
         if (Visible)
-        {
             RefreshStatus();
-            _timer.Start();
-            return;
-        }
 
-        _timer.Stop();
+        _timer.Interval = Visible ? VisibleRefreshMs : HiddenRefreshMs;
     }
 
     protected override void OnHandleCreated(EventArgs e)
@@ -355,11 +353,10 @@ internal sealed class MainForm : Form
         }
 
         // 主题切换即时换色，不等下一次轮询
-        if (m.Msg == WmSettingChange && IsImmersiveColorSet(m.LParam))
-        {
-            ApplyTheme();
-        }
-        else if (m.Msg == WmNcLButtonDblClk)
+        if (ThemeRefresh.TryApply(this, m, ApplyTheme))
+            return;
+
+        if (m.Msg == WmNcLButtonDblClk)
         {
             return; // 双击不做事（无边框窗口会被当成最大化）
         }
@@ -377,10 +374,6 @@ internal sealed class MainForm : Form
 
         base.WndProc(ref m);
     }
-
-    private static bool IsImmersiveColorSet(IntPtr lParam) =>
-        lParam != IntPtr.Zero &&
-        string.Equals(Marshal.PtrToStringUni(lParam), "ImmersiveColorSet", StringComparison.OrdinalIgnoreCase);
 
     private void ApplyTheme()
     {
@@ -408,15 +401,14 @@ internal sealed class MainForm : Form
         ApplyState();
     }
 
-    // 状态没变就不动托盘图标，省得每 2 秒惊动 shell
     private void RefreshStatus()
     {
-        bool running = GpgController.IsRunning();
-        if (running == _running)
-            return;
-
-        _running = running;
-        ApplyState();
+        // null = 查询失败，保持原状态
+        if (GpgController.IsRunning() is bool running && running != _running)
+        {
+            _running = running;
+            ApplyState();
+        }
     }
 
     private void ApplyState()
@@ -474,8 +466,8 @@ internal sealed class MainForm : Form
     }
 
     // 错误提示独立弹出，不把藏在托盘的主窗拉出来
-    private static void ShowError(string message) =>
-        Dialog.Show(null, TaskDialogIcon.Warning, message);
+    private void ShowError(string message) =>
+        Dialog.Show(Visible ? this : null, TaskDialogIcon.Warning, message);
 
     private void SetBusy(bool busy) =>
         _start.Enabled = _kill.Enabled = _restart.Enabled = !busy;

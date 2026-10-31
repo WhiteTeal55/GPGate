@@ -12,37 +12,43 @@ internal static class GpgController
 
     private static bool _queryFailed;
 
-    public static bool IsRunning()
+    // 失败返回 null（只记一次日志），调用方保持原状态
+    public static bool? IsRunning()
     {
         try
         {
-            bool running = GpgProcessNames.Any(IsProcessRunning);
+            bool running = IsAnyProcessRunning(GpgProcessNames);
             _queryFailed = false;
             return running;
         }
         catch (Exception ex)
         {
-            // 受限环境下查询可能被拒，只记一次
             if (!_queryFailed)
             {
                 _queryFailed = true;
                 _ = Log.Warn($"查询 GPG 进程失败: {ex.Message}");
             }
 
-            return false;
+            return null;
         }
     }
 
-    private static bool IsProcessRunning(string name)
+    // 一次枚举全部进程；按名字逐个查要枚举三遍
+    private static bool IsAnyProcessRunning(params string[] names)
     {
-        Process[] found = Process.GetProcessesByName(name);
-        foreach (Process process in found)
-            process.Dispose();
-
-        return found.Length > 0;
+        Process[] processes = Process.GetProcesses();
+        try
+        {
+            return processes.Any(process => names.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            foreach (Process process in processes)
+                process.Dispose();
+        }
     }
 
-    public static string? Toggle() => IsRunning() ? Kill() : Start();
+    public static string? Toggle() => IsRunning() is true ? Kill() : Start();
 
     public static string? Kill() => Exec("gpgconf", "--kill all", "终止 GPG 进程");
 
@@ -73,7 +79,7 @@ internal static class GpgController
             return scdaemonFailed;
 
         // 协议层出错时退出码仍是 0，改看进程
-        return IsProcessRunning("scdaemon") ? null : Log.Warn("scdaemon 未能启动");
+        return IsAnyProcessRunning("scdaemon") ? null : Log.Warn("scdaemon 未能启动");
     }
 
     // 行格式 name:flags:…:argdef:value，disable-scdaemon 的 value 为 1 即禁用

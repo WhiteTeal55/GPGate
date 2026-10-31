@@ -11,8 +11,7 @@ internal sealed class CloseConfirmationForm : Form
     {
         SuspendLayout();
 
-        // 每次打开都按系统深浅色重设
-        Application.SetColorMode(SystemColorMode.System);
+        ThemeRefresh.EnsureColorMode();
 
         _icon = AppInfo.LoadAppIcon();
         _promptIcon = ShellIcons.Load(ShellIcons.Info);
@@ -22,7 +21,6 @@ internal sealed class CloseConfirmationForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -45,7 +43,7 @@ internal sealed class CloseConfirmationForm : Form
         Panel separator = new()
         {
             Bounds = new Rectangle(0, 70, 360, 1),
-            BackColor = SystemColors.ControlDark,
+            BackColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).Separator,
         };
 
         _dontAskAgain = new CheckBox
@@ -76,6 +74,14 @@ internal sealed class CloseConfirmationForm : Form
         PerformLayout();
 
         Shown += (_, _) => ActiveControl = exit; // 默认焦点给确定
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (ThemeRefresh.TryApply(this, m))
+            return;
+
+        base.WndProc(ref m);
     }
 
     internal bool DontAskAgain => _dontAskAgain.Checked;

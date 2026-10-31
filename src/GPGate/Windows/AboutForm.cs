@@ -15,8 +15,7 @@ internal sealed class AboutForm : Form
 
     internal AboutForm()
     {
-        // 每次打开都按系统深浅色重设
-        Application.SetColorMode(SystemColorMode.System);
+        ThemeRefresh.EnsureColorMode();
 
         _icon = AppInfo.LoadAppIcon();
         _logo = _icon.ToBitmap();
@@ -65,7 +64,7 @@ internal sealed class AboutForm : Form
         Panel separator = new()
         {
             Bounds = new Rectangle(MarginX, 100, TextWidth, 1),
-            BackColor = SystemColors.ControlDark,
+            BackColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).Separator,
         };
 
         LinkLabel attribution = CreateLink(
@@ -100,6 +99,14 @@ internal sealed class AboutForm : Form
 
         ResumeLayout(false);
         PerformLayout();
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (ThemeRefresh.TryApply(this, m))
+            return;
+
+        base.WndProc(ref m);
     }
 
     protected override void Dispose(bool disposing)

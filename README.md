@@ -36,13 +36,13 @@ $p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
 
 `–` 最小化至托盘，单击托盘图标即可恢复。`×` 为退出，默认需二次确认（可勾选「不再提示」）。若当前有操作正在执行，程序会等待该操作完成后再退出。等待期间界面锁定，不响应点击。操作失败时程序不退出，在界面上提示错误。
 
-界面只呈现当前可用的操作，窗口显示时每 2 秒刷新状态。状态行右侧为「日志」与版本号。可用 Tab 聚焦，空格打开关于。
+界面只呈现当前可用的操作，状态每 2 秒刷新，窗口收起后降为 5 秒。状态行右侧为「日志」与版本号。可用 Tab 聚焦，空格打开关于。
 
 窗口图标与任务栏图标右上角显示状态圆点。蓝色为运行中，灰色为未运行。
 
 <img src="assets/shot-dark-off.png" width="260" alt="深色 · 未运行"> <img src="assets/shot-light-on.png" width="260" alt="浅色 · 运行中">
 
-托盘右键菜单为系统原生菜单，跟随主题配色。窗口收起后托盘图标不再实时更新，打开菜单时会先刷新。
+托盘右键菜单为系统原生菜单，跟随主题配色。窗口收起后托盘图标照常刷新，打开菜单时也会先查一次。
 
 菜单包含显示窗口、启动/终止/重启、开机自启、退出时二次确认、打开日志与关于。关于页显示版本、版权与图标署名。
 
@@ -52,7 +52,7 @@ $p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
 
 需要 .NET 10 SDK，两种发布方式可一次生成。
 
-框架依赖版本约 680 KB，运行时需安装 .NET 10 桌面运行时：
+框架依赖版本约 690 KB，运行时需安装 .NET 10 桌面运行时：
 
 ```
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
@@ -73,6 +73,8 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 ## 说明
 
 启动会拉起 `gpg-agent`、`keyboxd` 与 `scdaemon`，终止则一并结束。启用了 `disable-scdaemon` 时跳过 `scdaemon`。单个子进程超过 10 秒未退出即判定为失败。
+
+运行状态只看进程名，不区分登录会话与用户：三个组件有任意一个在跑就算运行中，别的用户在跑时同样显示「运行中」。
 
 同时只允许一个操作，已有操作在跑时新的调用立即返回失败，不排队。
 

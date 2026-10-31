@@ -6,8 +6,9 @@ internal static class Dialog
         string? heading = null, string? details = null)
     {
         using DialogForm dialog = new(icon, text, heading, details);
-        // 没有 owner（命令行/异常路径）时居中屏幕，有 owner 时居中于 owner
+        // 没有 owner 时居中屏幕并给个任务栏按钮，有 owner 时居中于 owner
         dialog.StartPosition = owner is null ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
+        dialog.ShowInTaskbar = owner is null;
         dialog.Shown += (_, _) =>
         {
             dialog.Activate();

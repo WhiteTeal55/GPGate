@@ -4,14 +4,20 @@
         {
             "label": "构建：框架依赖版本",
             "type": "shell",
-            "command": "dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish",
+            "command": "$t = Get-Date; Write-Host ('构建：框架依赖版本 ' + $t.ToString('yyyy-MM-dd HH:mm:ss')); dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish; $code = $LASTEXITCODE; $file = Get-Item publish/GPGate.exe -ErrorAction SilentlyContinue; if ($file) { Write-Host ('产物 ' + $file.LastWriteTime.ToString('HH:mm:ss') + '，' + [math]::Round($file.Length / 1KB) + ' KB') }; Write-Host ('构建结束 ' + (Get-Date).ToString('HH:mm:ss') + '，用时 ' + [math]::Round(((Get-Date) - $t).TotalSeconds) + ' 秒，退出码 ' + $code); exit $code",
+            "presentation": {
+                "echo": false
+            },
             "problemMatcher": []
         },
         {
             "label": "构建：自包含版本",
             "type": "shell",
-            "command": "dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone",
+            "command": "$t = Get-Date; Write-Host ('构建：自包含版本 ' + $t.ToString('yyyy-MM-dd HH:mm:ss')); dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone; $code = $LASTEXITCODE; $file = Get-Item publish-standalone/GPGate.exe -ErrorAction SilentlyContinue; if ($file) { Write-Host ('产物 ' + $file.LastWriteTime.ToString('HH:mm:ss') + '，' + [math]::Round($file.Length / 1MB, 1) + ' MB') }; Write-Host ('构建结束 ' + (Get-Date).ToString('HH:mm:ss') + '，用时 ' + [math]::Round(((Get-Date) - $t).TotalSeconds) + ' 秒，退出码 ' + $code); exit $code",
+            "presentation": {
+                "echo": false
+            },
             "problemMatcher": []
-        },
+        }
     ]
 }

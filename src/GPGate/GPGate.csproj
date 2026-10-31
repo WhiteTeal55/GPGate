@@ -18,7 +18,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <Version>1.1.0</Version>
+    <Version>1.1.2</Version>
     <Company>WhiteTeal55</Company>
     <Product>GPG 代理启停控制工具</Product>
     <Copyright>© 2026 WhiteTeal55</Copyright>
