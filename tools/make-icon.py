@@ -107,10 +107,11 @@ def save_set(name: str, base: Image.Image, small: Image.Image) -> None:
 def main() -> None:
     base = square(SOURCE, 0.04)
     # 挂锁瘦长，多留边距；素材本身单色，压成品牌蓝可去掉缩放振铃
-    small = recolor(square(SMALL_SOURCE, 0.10), (0, 147, 221))
+    brand_blue = (0, 147, 221)
+    small = recolor(square(SMALL_SOURCE, 0.10), brand_blue)
     save_set("app", base, small)
     save_set("app-off", recolor(base, (255, 255, 255)), recolor(small, (255, 255, 255)))
-    save_set("app-off-light", recolor(base, (0, 0, 0)), recolor(small, (0, 0, 0)))
+    save_set("app-off-light", recolor(base, brand_blue), recolor(small, brand_blue))
 
 
 if __name__ == "__main__":

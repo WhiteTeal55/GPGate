@@ -3,7 +3,20 @@ using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
 namespace GPGate;
+/*
+  _                                                       
+ | |                                                      
+ | |     _____   _____                                    
+ | |    / _ \ \ / / _ \                                   
+ | |___| (_) \ V /  __/                                   
+ |______\___/_\_/ \___|_    _______         _ _____ _____ 
+ \ \        / / |   (_) |  |__   __|       | | ____| ____|
+  \ \  /\  / /| |__  _| |_ ___| | ___  __ _| | |__ | |__  
+   \ \/  \/ / | '_ \| | __/ _ \ |/ _ \/ _` | |___ \|___ \ 
+    \  /\  /  | | | | | ||  __/ |  __/ (_| | |___) |___) |
+     \/  \/   |_| |_|_|\__\___|_|\___|\__,_|_|____/|____/ 
 
+*/
 // 托盘常驻的自绘圆角卡片，配色跟随系统深浅色。
 internal sealed class MainForm : Form
 {
@@ -19,7 +32,7 @@ internal sealed class MainForm : Form
     private const int DwmwcpRound = 2;
     private const int DwmwaBorderColor = 34;
 
-    private const int CardWidth = 300;
+    private const int CardWidth = 344;
     private const int CardHeight = 200;
 
     private const int VisibleRefreshMs = 2000;
@@ -41,6 +54,7 @@ internal sealed class MainForm : Form
     private readonly FlatButton _kill;
     private readonly FlatButton _restart;
     private readonly FlatButton _minimize;
+    private readonly FlatButton _themeToggle;
     private readonly FlatButton _close;
     private readonly FlatButton _logButton;
     private readonly FlatButton _info;
@@ -97,6 +111,9 @@ internal sealed class MainForm : Form
         _minimize = new FlatButton("最小化") { Glyph = GlyphKind.Minimize };
         _minimize.Click += (_, _) => Hide(); // 直接隐藏，不进 iconic 状态，唤醒时就没有还原动画
 
+        _themeToggle = new FlatButton(string.Empty) { AccessibleName = "切换到浅色模式" };
+        _themeToggle.Click += (_, _) => SetTheme(_lightTheme ? ThemeMode.Dark : ThemeMode.Light);
+
         _close = new FlatButton("关闭")
         {
             Glyph = GlyphKind.Close,
@@ -106,13 +123,13 @@ internal sealed class MainForm : Form
         };
         _close.Click += (_, _) => Close();
 
-        _logButton = new FlatButton("日志") { Font = _bodyFont, AccessibleName = "打开日志文件夹" };
+        _logButton = new FlatButton("查看日志") { Font = _bodyFont, AccessibleName = "打开日志文件夹" };
         _logButton.Click += (_, _) => OpenLogFolder();
 
         _info = new FlatButton(InfoText) { Font = _bodyFont, TextAlign = ContentAlignment.MiddleRight, AccessibleName = "关于" };
         _info.Click += (_, _) => ShowAbout();
 
-        Controls.AddRange([_start, _kill, _restart, _minimize, _close, _logButton, _info]);
+        Controls.AddRange([_start, _kill, _restart, _themeToggle, _minimize, _close, _logButton, _info]);
         ApplyLayout();
 
         _icons = new AppIcons(S(48));
@@ -181,17 +198,18 @@ internal sealed class MainForm : Form
 
         _tileRect = R(20, 20, 52, 52);
         _iconRect = R(23, 23, 46, 46);
-        _titleRect = R(86, 23, 150, 24);
-        _subtitleRect = R(86, 49, 150, 20);
+        _titleRect = R(86, 23, 104, 24);
+        _subtitleRect = R(86, 49, 190, 20);
         _headerRect = R(0, 0, CardWidth, 82);
 
-        _start.Bounds = R(20, 138, 260, 40);
-        _kill.Bounds = R(20, 138, 124, 40);
-        _restart.Bounds = R(156, 138, 124, 40);
-        _minimize.Bounds = R(216, 18, 32, 32);
-        _close.Bounds = R(252, 18, 32, 32);
-        _logButton.Bounds = R(104, 94, 40, 24);
-        _info.Bounds = R(152, 89, 128, 34);
+        _start.Bounds = R(20, 138, 304, 40);
+        _kill.Bounds = R(20, 138, 146, 40);
+        _restart.Bounds = R(178, 138, 146, 40);
+        _themeToggle.Bounds = R(224, 18, 32, 32);
+        _minimize.Bounds = R(260, 18, 32, 32);
+        _close.Bounds = R(296, 18, 32, 32);
+        _logButton.Bounds = R(108, 94, 64, 24);
+        _info.Bounds = R(196, 89, 128, 34);
 
         foreach (FlatButton button in Buttons)
         {
@@ -375,9 +393,9 @@ internal sealed class MainForm : Form
         base.WndProc(ref m);
     }
 
-    private void ApplyTheme()
+    internal void ApplyTheme()
     {
-        _lightTheme = !Application.IsDarkModeEnabled;
+        _lightTheme = !ThemePreference.IsDark;
         _theme = _lightTheme ? Palette.Light : Palette.Dark;
 
         BackColor = _theme.Background;
@@ -392,6 +410,11 @@ internal sealed class MainForm : Form
         _restart.FillPress = _logButton.FillPress = _minimize.FillPress = _theme.GhostFill;
         _restart.ForeColor = _theme.Text;
         _minimize.ForeColor = _close.ForeColor = _logButton.ForeColor = _theme.Muted;
+        _themeToggle.Glyph = _lightTheme ? GlyphKind.Moon : GlyphKind.Sun;
+        _themeToggle.AccessibleName = _lightTheme ? "切换到深色模式" : "切换到浅色模式";
+        _themeToggle.ForeColor = _theme.Muted;
+        _themeToggle.FillHover = _theme.GhostFillHover;
+        _themeToggle.FillPress = _theme.GhostFill;
         _info.ForeColor = _theme.Muted;
         _info.ForeColorHover = _theme.Text;
 
@@ -495,7 +518,8 @@ internal sealed class MainForm : Form
             TrayOnStartup: Startup.TrayOnStartup,
             CloseConfirmationEnabled: CloseConfirmation.IsEnabled,
             CanManageStartup: Startup.CanManageStartup,
-            LightTheme: _lightTheme));
+            LightTheme: _lightTheme,
+            ThemeMode: ThemePreference.Mode));
 
         switch (command)
         {
@@ -508,6 +532,9 @@ internal sealed class MainForm : Form
             case TrayCommand.Start: RunAction("start"); break;
             case TrayCommand.Kill: RunAction("kill"); break;
             case TrayCommand.Restart: RunAction("restart"); break;
+            case TrayCommand.SetDarkTheme: SetTheme(ThemeMode.Dark); break;
+            case TrayCommand.SetLightTheme: SetTheme(ThemeMode.Light); break;
+            case TrayCommand.SetSystemTheme: SetTheme(ThemeMode.System); break;
             case TrayCommand.ToggleStartup:
                 if (!Startup.Toggle())
                     ShowError(Startup.ErrorMessage);
@@ -524,6 +551,12 @@ internal sealed class MainForm : Form
             case TrayCommand.About: ShowAbout(); break;
             case TrayCommand.Close: Close(); break;
         }
+    }
+
+    private void SetTheme(ThemeMode mode)
+    {
+        if (!ThemePreference.TrySetMode(mode))
+            ShowError(ThemePreference.ErrorMessage);
     }
 
     // 关于页独立窗口，不阻塞主界面

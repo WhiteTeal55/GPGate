@@ -7,6 +7,8 @@ internal enum GlyphKind
     None,
     Minimize,
     Close,
+    Sun,
+    Moon,
 }
 
 // 自绘圆角按钮：保留 Button 的点击/键盘行为，只换外观。
@@ -145,6 +147,36 @@ internal sealed class FlatButton : Button
         float cy = Height / 2f;
         float half = 5f * DpiScale;
         float arm = 4f * DpiScale;
+
+        if (Glyph == GlyphKind.Sun)
+        {
+            float radius = 3f * DpiScale;
+            g.DrawEllipse(pen, cx - radius, cy - radius, radius * 2, radius * 2);
+            for (int i = 0; i < 8; i++)
+            {
+                double angle = i * Math.PI / 4;
+                float inner = 5f * DpiScale;
+                float outer = 7f * DpiScale;
+                g.DrawLine(pen,
+                    cx + (float)Math.Cos(angle) * inner,
+                    cy + (float)Math.Sin(angle) * inner,
+                    cx + (float)Math.Cos(angle) * outer,
+                    cy + (float)Math.Sin(angle) * outer);
+            }
+            return;
+        }
+
+        if (Glyph == GlyphKind.Moon)
+        {
+            float radius = 6f * DpiScale;
+            Color fill = Dimmed(CurrentFill);
+            using SolidBrush moon = new(color);
+            using SolidBrush cutout = new(fill);
+            g.FillEllipse(moon, cx - radius, cy - radius, radius * 2, radius * 2);
+            g.FillEllipse(cutout, cx - radius + 4f * DpiScale, cy - radius - 2f * DpiScale,
+                radius * 2, radius * 2);
+            return;
+        }
 
         if (Glyph == GlyphKind.Minimize)
         {

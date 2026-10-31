@@ -8,40 +8,26 @@ internal static class ThemeRefresh
     private const int WmSettingChange = 0x001A;
     private const int DwmwaUseImmersiveDarkMode = 20;
 
-    private static bool? _appliedDark;
-
     // 收到深浅色变化就刷新并返回 true；applyTheme 是窗口自己的配色逻辑
     internal static bool TryApply(Form form, Message m, Action? applyTheme = null)
     {
         if (m.Msg != WmSettingChange || !IsImmersiveColorSet(m.LParam))
             return false;
 
-        bool dark = Application.IsDarkModeEnabled;
-        Control? focused = form.ActiveControl;
-
-        // 一次广播会送到每个窗口，全局配色只切一次，其余只刷自己的颜色
-        if (_appliedDark != dark)
-        {
-            _appliedDark = dark;
-            Application.SetColorMode(SystemColorMode.System);
-        }
-
-        Refresh(form, dark);
-        applyTheme?.Invoke();
-        ApplyTitleBar(form, dark);
-
-        form.ActiveControl = focused;
-        form.Invalidate(true);
-        form.Update();
+        ThemePreference.ApplyColorMode();
+        Apply(form, ThemePreference.IsDark, applyTheme);
         return true;
     }
 
-    // 命令行路径没走过 GUI 初始化，补一次全局配色
-    internal static void EnsureColorMode()
+    internal static void RefreshOpenForms()
     {
-        if (Application.ColorMode != SystemColorMode.System)
-            Application.SetColorMode(SystemColorMode.System);
+        bool dark = ThemePreference.IsDark;
+        foreach (Form form in Application.OpenForms)
+            Apply(form, dark, form is MainForm main ? main.ApplyTheme : null);
     }
+
+    // 命令行路径没走过 GUI 初始化，补一次全局配色
+    internal static void EnsureColorMode() => ThemePreference.ApplyColorMode();
 
     private static bool IsImmersiveColorSet(IntPtr lParam) =>
         Marshal.PtrToStringUni(lParam) is string name &&
@@ -85,6 +71,17 @@ internal static class ThemeRefresh
                     break;
             }
         }
+    }
+
+    private static void Apply(Form form, bool dark, Action? applyTheme)
+    {
+        Control? focused = form.ActiveControl;
+        Refresh(form, dark);
+        applyTheme?.Invoke();
+        ApplyTitleBar(form, dark);
+        form.ActiveControl = focused;
+        form.Invalidate(true);
+        form.Update();
     }
 
     private static void ApplyTitleBar(Form form, bool dark)

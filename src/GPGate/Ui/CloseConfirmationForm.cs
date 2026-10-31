@@ -1,3 +1,5 @@
+using System.Media;
+
 namespace GPGate;
 
 // 退出确认：标准控件 + 系统配色
@@ -73,7 +75,11 @@ internal sealed class CloseConfirmationForm : Form
         ResumeLayout(false);
         PerformLayout();
 
-        Shown += (_, _) => ActiveControl = exit; // 默认焦点给确定
+        Shown += (_, _) =>
+        {
+            ActiveControl = exit; // 默认焦点给确定
+            WindowAttention.Notify(this, SystemSounds.Exclamation);
+        };
     }
 
     protected override void WndProc(ref Message m)

@@ -9,6 +9,9 @@ internal enum TrayCommand
     Start,
     Kill,
     Restart,
+    SetDarkTheme,
+    SetLightTheme,
+    SetSystemTheme,
     ToggleStartup,
     ToggleStartupTray,
     ToggleCloseConfirmation,
@@ -25,7 +28,8 @@ internal readonly record struct TrayMenuState(
     bool TrayOnStartup,
     bool CloseConfirmationEnabled,
     bool CanManageStartup,
-    bool LightTheme);
+    bool LightTheme,
+    ThemeMode ThemeMode);
 
 // 托盘右键菜单：系统原生 popup，自己持有隐藏 owner 窗口
 internal sealed class TrayMenu : NativeWindow, IDisposable
@@ -37,6 +41,7 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
     private const uint MfString = 0x0000;
     private const uint MfGrayed = 0x0001;
     private const uint MfChecked = 0x0008;
+    private const uint MfPopup = 0x0010;
     private const uint MfSeparator = 0x0800;
     private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCmd = 0x0100;
@@ -78,6 +83,18 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
             {
                 Append(menu, TrayCommand.Start, "启动", enabled: canAct);
             }
+
+            IntPtr themeMenu = CreatePopupMenu();
+            if (themeMenu == IntPtr.Zero)
+                return TrayCommand.None;
+
+            Append(themeMenu, TrayCommand.SetDarkTheme, "深色",
+                checkedItem: state.ThemeMode == ThemeMode.Dark);
+            Append(themeMenu, TrayCommand.SetLightTheme, "浅色",
+                checkedItem: state.ThemeMode == ThemeMode.Light);
+            Append(themeMenu, TrayCommand.SetSystemTheme, "跟随系统配色",
+                checkedItem: state.ThemeMode == ThemeMode.System);
+            AppendMenu(menu, MfString | MfPopup, themeMenu, "主题颜色");
 
             Separator(menu);
             bool canStartup = state.CanManageStartup;

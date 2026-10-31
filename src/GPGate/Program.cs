@@ -106,7 +106,7 @@ internal static class Program
 
         try
         {
-            Application.SetColorMode(SystemColorMode.System);
+            ThemePreference.ApplyColorMode();
             Application.Run(new MainForm());
             return 0;
         }

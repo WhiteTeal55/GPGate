@@ -101,7 +101,7 @@ internal static class GpgController
 
         string? path = FindTool(appName);
         if (path is null)
-            return Log.Error($"未找到 {appName}.exe，请检查 GPG 是否已安装并在 PATH 中");
+            return Log.Error($"未找到 {appName}.exe 请检查 GPG 是否已安装并在 PATH 中");
 
         try
         {

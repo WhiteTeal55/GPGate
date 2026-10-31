@@ -1,3 +1,5 @@
+using System.Media;
+
 namespace GPGate;
 
 // 消息对话框：标准控件 + 系统配色
@@ -124,7 +126,15 @@ internal sealed class DialogForm : Form
         ResumeLayout(false);
         PerformLayout();
 
-        Shown += (_, _) => ActiveControl = ok; // 默认焦点给确定
+        SystemSound sound = icon == TaskDialogIcon.Error ? SystemSounds.Hand
+            : icon == TaskDialogIcon.Warning ? SystemSounds.Exclamation
+            : icon == TaskDialogIcon.Information ? SystemSounds.Asterisk
+            : SystemSounds.Beep;
+        Shown += (_, _) =>
+        {
+            ActiveControl = ok; // 默认焦点给确定
+            WindowAttention.Notify(this, sound);
+        };
 
         bool expanded = false;
         if (link is not null)
