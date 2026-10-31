@@ -9,10 +9,8 @@ internal static class Startup
     private const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
     private static readonly string ValueName = AppInfo.Name;
 
-    // 写注册表失败时的提示，托盘菜单用
-    internal const string ErrorMessage = "开机自启设置失败，可能需要管理员权限。";
+    internal const string ErrorMessage = "开机自启设置失败，请检查注册表写入权限。";
 
-    // 最近一次写入是否成功
     internal static bool CanManageStartup { get; private set; } = true;
 
     private static object? ReadValue(string key)
@@ -46,12 +44,12 @@ internal static class Startup
 
     internal static bool Enable(bool tray) => Guard(() =>
     {
-        // 先清禁用标记，失败就不写 Run，避免半成功
+        // 先清禁用标记，避免半成功
         RemoveValue(ApprovedKey);
         WriteValue(Command(tray));
     });
 
-    // 各处入口都调用：系统里被关掉就清理，exe 挪过位置就重写路径
+    // 被系统禁用就清理，exe 路径变了就重写
     internal static bool Sync() => Guard(() =>
     {
         if (IsDisabled)

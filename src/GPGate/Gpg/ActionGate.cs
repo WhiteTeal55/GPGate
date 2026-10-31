@@ -30,18 +30,16 @@ internal static class ActionGate
         if (!owned)
         {
             gate?.Dispose();
-            return (false, $"[错误] 另一个 {AppInfo.Name} 正在执行命令");
+            return (false, Log.Warn($"另一个 {AppInfo.Name} 正在执行命令"));
         }
 
         try
         {
-            _ = Startup.Sync();
             _ = Log.Info($"执行 {command}");
             return (true, Dispatch(command));
         }
         catch (Exception ex)
         {
-            // 别把界面/终端带崩
             _ = Log.Error($"执行 {command} 出错: {ex}");
             return (true, $"[错误] {ex.Message}");
         }

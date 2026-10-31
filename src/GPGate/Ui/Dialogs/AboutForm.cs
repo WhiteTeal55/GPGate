@@ -2,7 +2,6 @@ using System.Diagnostics;
 
 namespace GPGate;
 
-// 关于窗口：标准控件 + 系统配色
 internal sealed class AboutForm : Form
 {
     private const int MarginX = 20;
@@ -56,9 +55,7 @@ internal sealed class AboutForm : Form
             Location = new Point(TextX - 1, 48),
         };
 
-        LinkLabel sourceCode = CreateLink(
-            "源代码：GitHub",
-            new Point(TextX - 1, 72),
+        LinkLabel sourceCode = CreateLink("源代码：GitHub", new Point(TextX - 1, 72),
             ("GitHub", "https://github.com/WhiteTeal55/GPGate"));
 
         Panel separator = new()
@@ -67,9 +64,7 @@ internal sealed class AboutForm : Form
             BackColor = (Application.IsDarkModeEnabled ? Palette.Dark : Palette.Light).Separator,
         };
 
-        LinkLabel attribution = CreateLink(
-            "图标素材：GnuPG 官方 artwork · 许可：CC BY-SA 4.0",
-            new Point(MarginX, 114),
+        LinkLabel attribution = CreateLink("图标素材：GnuPG 官方 artwork · 许可：CC BY-SA 4.0", new Point(MarginX, 114),
             ("GnuPG", "https://gnupg.org/"),
             ("CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"));
 
@@ -80,9 +75,7 @@ internal sealed class AboutForm : Form
             Location = new Point(MarginX, 142),
         };
 
-        LinkLabel copyright = CreateLink(
-            $"{AppInfo.Copyright} · 许可：MIT",
-            new Point(MarginX - 1, 174),
+        LinkLabel copyright = CreateLink($"{AppInfo.Copyright} · 许可：MIT", new Point(MarginX - 1, 174),
             ("MIT", "https://github.com/WhiteTeal55/GPGate/blob/main/LICENSE"));
 
         Button ok = new()
@@ -121,12 +114,13 @@ internal sealed class AboutForm : Form
         }
     }
 
-    private static LinkLabel CreateLink(string text, Point location, params (string Text, string Url)[] links)
+    private LinkLabel CreateLink(string text, Point location, params (string Text, string Url)[] links)
     {
         LinkLabel label = new()
         {
             Text = text,
             AutoSize = true,
+            TabStop = true,
             Location = location,
             LinkBehavior = LinkBehavior.HoverUnderline,
             UseMnemonic = false,
@@ -136,16 +130,37 @@ internal sealed class AboutForm : Form
         label.LinkColor = label.ActiveLinkColor = label.VisitedLinkColor = linkColor;
 
         foreach ((string linkText, string url) in links)
-            label.Links.Add(text.IndexOf(linkText, StringComparison.Ordinal), linkText.Length, url);
+        {
+            int start = text.IndexOf(linkText, StringComparison.Ordinal);
+            if (start >= 0)
+                label.Links.Add(start, linkText.Length, url);
+        }
 
         label.LinkClicked += (_, e) =>
         {
             if (e.Link?.LinkData is string url)
-            {
-                using Process? process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            }
+                Open(url);
         };
 
         return label;
     }
+
+    private void Open(string url)
+    {
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            if (process is not null)
+                return;
+        }
+        catch (Exception ex)
+        {
+            _ = Log.Warn($"打开链接失败: {ex.Message}");
+        }
+
+        ShowError($"无法打开链接：{url}");
+    }
+
+    private void ShowError(string message) =>
+        Dialog.Show(this, TaskDialogIcon.Error, message, "打开失败");
 }

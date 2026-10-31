@@ -18,6 +18,15 @@
                 "echo": false
             },
             "problemMatcher": []
+        },
+        {
+            "label": "构建：两个版本",
+            "type": "shell",
+            "command": "$t = Get-Date; Write-Host ('构建：两个版本 ' + $t.ToString('yyyy-MM-dd HH:mm:ss')); dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish; $first = $LASTEXITCODE; dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone; $second = $LASTEXITCODE; $small = Get-Item publish/GPGate.exe -ErrorAction SilentlyContinue; $large = Get-Item publish-standalone/GPGate.exe -ErrorAction SilentlyContinue; if ($small) { Write-Host ('框架依赖 ' + $small.LastWriteTime.ToString('HH:mm:ss') + '，' + [math]::Round($small.Length / 1KB) + ' KB') }; if ($large) { Write-Host ('自包含 ' + $large.LastWriteTime.ToString('HH:mm:ss') + '，' + [math]::Round($large.Length / 1MB, 1) + ' MB') }; $code = if ($first -ne 0) { $first } else { $second }; Write-Host ('构建结束 ' + (Get-Date).ToString('HH:mm:ss') + '，用时 ' + [math]::Round(((Get-Date) - $t).TotalSeconds) + ' 秒，退出码 ' + $code); exit $code",
+            "presentation": {
+                "echo": false
+            },
+            "problemMatcher": []
         }
     ]
 }

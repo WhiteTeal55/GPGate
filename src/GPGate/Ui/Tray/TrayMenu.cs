@@ -5,7 +5,6 @@ namespace GPGate;
 internal enum TrayCommand
 {
     None,
-    ToggleWindow,
     Start,
     Kill,
     Restart,
@@ -18,7 +17,6 @@ internal enum TrayCommand
 }
 
 internal readonly record struct TrayMenuState(
-    bool WindowVisible,
     bool Running,
     bool Busy,
     bool StartupEnabled,
@@ -55,7 +53,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
         });
     }
 
-    // 弹出并等待选择，调用方按返回值分发
     internal TrayCommand Show(TrayMenuState state)
     {
         IntPtr menu = CreatePopupMenu();
@@ -64,19 +61,18 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
         try
         {
-            Append(menu, TrayCommand.ToggleWindow, state.WindowVisible ? "隐藏窗口" : "显示窗口");
-            SetMenuDefaultItem(menu, (uint)TrayCommand.ToggleWindow, 0);
-            Separator(menu);
-
-            bool canAct = !state.Busy;
-            if (state.Running)
+            if (state.Busy)
             {
-                Append(menu, TrayCommand.Kill, "终止", enabled: canAct);
-                Append(menu, TrayCommand.Restart, "重启", enabled: canAct);
+                Append(menu, TrayCommand.None, "处理中…", enabled: false);
+            }
+            else if (state.Running)
+            {
+                Append(menu, TrayCommand.Kill, "终止");
+                Append(menu, TrayCommand.Restart, "重启");
             }
             else
             {
-                Append(menu, TrayCommand.Start, "启动", enabled: canAct);
+                Append(menu, TrayCommand.Start, "启动");
             }
 
             Separator(menu);
@@ -86,7 +82,7 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
             Append(menu, TrayCommand.ToggleStartupTray, "自启时启动托盘",
                 enabled: canStartup && state.StartupEnabled, checkedItem: state.TrayOnStartup);
             if (!canStartup)
-                Append(menu, TrayCommand.None, "开机自启需要管理员权限", enabled: false);
+                Append(menu, TrayCommand.None, "开机自启设置不可用", enabled: false);
             Append(menu, TrayCommand.ToggleCloseConfirmation, "退出时二次确认",
                 checkedItem: state.CloseConfirmationEnabled);
 
@@ -97,7 +93,7 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
             GetCursorPos(out CursorPoint cursor);
 
-            // 用隐藏 owner 当前台：菜单才会自动收起又不顶起卡片
+            // 用隐藏 owner 当前台：菜单才会自动收起又不顶起窗口
             ApplyTheme(state.LightTheme);
             WindowFocus.BringToForeground(Handle);
             int command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd,
@@ -134,7 +130,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
         }
         catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
         {
-            // 系统不提供这些入口，菜单用默认配色
         }
     }
 
@@ -150,9 +145,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern void AppendMenu(IntPtr hMenu, uint uFlags, nint uIDNewItem, string? lpNewItem);
-
-    [DllImport("user32.dll")]
-    private static extern void SetMenuDefaultItem(IntPtr hMenu, uint uItem, uint fByPos);
 
     [DllImport("user32.dll")]
     private static extern int TrackPopupMenuEx(IntPtr hMenu, uint fuFlags, int x, int y, IntPtr hWnd, IntPtr lptpm);

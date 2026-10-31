@@ -48,7 +48,6 @@ internal static class Log
         }
         catch
         {
-            // 日志不能反过来影响主流程
         }
         finally
         {

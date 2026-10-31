@@ -2,7 +2,6 @@ using System.Reflection;
 
 namespace GPGate;
 
-// 程序集元数据集中入口
 internal static class AppInfo
 {
     // 图标嵌入资源名，与 csproj 的 LogicalName 对应

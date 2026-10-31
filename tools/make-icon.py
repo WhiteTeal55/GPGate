@@ -12,6 +12,7 @@ SOURCE = ASSETS / "source" / "gnupg-lock.png"
 SMALL_SOURCE = ASSETS / "source" / "gnupg-lock-80x100tr.png"  # 小尺寸用不带外环的挂锁
 WORK = 1024
 SIZES = [16, 20, 24, 28, 32, 40, 48, 64, 96, 128, 256]
+TRAY_SIZES = [16, 20, 24, 32]  # 托盘只按 SmallIconSize 取帧，大尺寸不用生成
 BMP_MAX = 64  # Shell 小图标只认 BMP/DIB 帧，PNG 帧会被忽略后放大低清帧
 SHARP_MAX = 32  # 小尺寸会被点采样缩放，收紧 alpha 才不糊
 SMALL_MAX = 32  # 到这个尺寸为止改用 SMALL_SOURCE 素材
@@ -94,23 +95,22 @@ def write_ico(path: Path, frames: dict[int, Image.Image]) -> None:
     path.write_bytes(struct.pack("<HHH", 0, 1, len(sizes)) + b"".join(entries) + b"".join(images))
 
 
-def save_set(name: str, base: Image.Image, small: Image.Image) -> None:
+def save_set(name: str, base: Image.Image, small: Image.Image, sizes: list[int]) -> None:
     frames = {}
-    for size in SIZES:
+    for size in sizes:
         frame = (small if size <= SMALL_MAX else base).resize((size, size), Image.Resampling.LANCZOS)
         frames[size] = sharpen_alpha(frame) if size <= SHARP_MAX else frame
 
     write_ico(ASSETS / f"{name}.ico", frames)
-    frames[256].save(ASSETS / f"{name}.png", optimize=True)
 
 
 def main() -> None:
     base = square(SOURCE, 0.04)
     # 挂锁瘦长，多留边距；素材本身单色，压成品牌蓝可去掉缩放振铃
     small = recolor(square(SMALL_SOURCE, 0.10), (0, 147, 221))
-    save_set("app", base, small)
-    save_set("app-off", recolor(base, (255, 255, 255)), recolor(small, (255, 255, 255)))
-    save_set("app-off-light", recolor(base, (0, 0, 0)), recolor(small, (0, 0, 0)))
+    save_set("app", base, small, SIZES)
+    save_set("app-off", recolor(base, (255, 255, 255)), recolor(small, (255, 255, 255)), TRAY_SIZES)
+    save_set("app-off-light", recolor(base, (0, 0, 0)), recolor(small, (0, 0, 0)), TRAY_SIZES)
 
 
 if __name__ == "__main__":

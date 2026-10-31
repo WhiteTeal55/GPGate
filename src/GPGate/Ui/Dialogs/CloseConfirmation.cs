@@ -3,14 +3,12 @@ using Microsoft.Win32;
 
 namespace GPGate;
 
-// 退出确认：写注册表 + 关闭前确认窗口
 internal static class CloseConfirmation
 {
     private static readonly string SettingsKey = $@"Software\{AppInfo.Name}";
     private const string ValueName = "SkipCloseConfirmation";
 
-    // 写失败时的提示，托盘和关闭确认共用
-    internal const string ErrorMessage = "退出确认设置失败，可能需要管理员权限。";
+    internal const string ErrorMessage = "退出确认设置失败，请检查注册表写入权限。";
 
     // 读失败按未设置处理
     private static bool? ReadValue()
@@ -18,7 +16,7 @@ internal static class CloseConfirmation
         try
         {
             object? value = Registry.GetValue($@"HKEY_CURRENT_USER\{SettingsKey}", ValueName, 0);
-            return Convert.ToInt64(value ?? 0, CultureInfo.InvariantCulture) != 1;
+            return Convert.ToInt64(value, CultureInfo.InvariantCulture) != 1;
         }
         catch (Exception)
         {
@@ -26,7 +24,7 @@ internal static class CloseConfirmation
         }
     }
 
-    internal static bool IsEnabled => ReadValue() is true;
+    internal static bool IsEnabled => ReadValue() is not false;
 
     // 返回 true 表示继续关闭
     internal static bool ConfirmClose(IWin32Window? owner)
@@ -34,17 +32,13 @@ internal static class CloseConfirmation
         if (!IsEnabled)
             return true;
 
-        using CloseConfirmationForm form = new();
-
-        // 托盘里没有可见 owner：居中屏幕并给个任务栏按钮
-        form.StartPosition = owner is null ? FormStartPosition.CenterScreen : FormStartPosition.CenterParent;
-        form.ShowInTaskbar = owner is null;
-        DialogResult result = owner is null ? form.ShowDialog() : form.ShowDialog(owner);
-        if (result != DialogResult.Yes)
+        DialogOutcome outcome = Dialog.Show(owner, TaskDialogIcon.Information,
+            string.Empty, "是否退出此软件？", checkBoxText: "不再提示", showCancel: true);
+        if (!outcome.Confirmed)
             return false;
 
         // 存不下设置就不关闭
-        if (!form.DontAskAgain || WriteValue(false))
+        if (!outcome.Checked || WriteValue(false))
             return true;
 
         Dialog.Show(owner, TaskDialogIcon.Error, ErrorMessage, "保存设置失败");
@@ -52,6 +46,11 @@ internal static class CloseConfirmation
     }
 
     internal static bool Toggle() => WriteValue(!IsEnabled);
+
+    internal static bool DeleteSettings() => Guard(() =>
+    {
+        Registry.CurrentUser.DeleteSubKeyTree(SettingsKey, false);
+    });
 
     internal static bool WriteValue(bool enabled) => Guard(() =>
     {

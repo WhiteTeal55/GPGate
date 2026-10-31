@@ -8,6 +8,7 @@ internal static class GpgController
 {
     private static readonly string[] GpgProcessNames = ["gpg-agent", "keyboxd", "scdaemon"];
     private const int ExecTimeoutMs = 10_000;
+    private const int OutputTimeoutMs = 3_000;
     private const int MaxDetailChars = 300;
 
     private static bool _queryFailed;
@@ -33,24 +34,32 @@ internal static class GpgController
         }
     }
 
-    // 一次枚举全部进程；按名字逐个查要枚举三遍
+    // 只查目标进程，避免枚举全部进程
     private static bool IsAnyProcessRunning(params string[] names)
     {
-        Process[] processes = Process.GetProcesses();
-        try
+        foreach (string name in names)
         {
-            return processes.Any(process => names.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase));
+            Process[] processes = Process.GetProcessesByName(name);
+            try
+            {
+                if (processes.Length > 0)
+                    return true;
+            }
+            finally
+            {
+                foreach (Process process in processes)
+                    process.Dispose();
+            }
         }
-        finally
-        {
-            foreach (Process process in processes)
-                process.Dispose();
-        }
+
+        return false;
     }
 
     public static string? Toggle() => IsRunning() is true ? Kill() : Start();
 
     public static string? Kill() => Exec("gpgconf", "--kill all", "终止 GPG 进程");
+
+    public static string? Restart() => Kill() ?? Start();
 
     public static string? Start()
     {
@@ -58,8 +67,7 @@ internal static class GpgController
         if (Exec("gpg-connect-agent", "/bye", "启动 gpg-agent") is { } agentFailed)
             return agentFailed;
 
-        // 两者互不影响：都尝试，报第一个错误
-        // gpg-connect-agent 会自己等 agent 起来
+        // 两者互不影响，都尝试并报第一个错误
         string? keyboxdFailed = Exec("gpg-connect-agent", "--keyboxd /bye", "启动 keyboxd");
         return StartScdaemon() ?? keyboxdFailed;
     }
@@ -67,7 +75,6 @@ internal static class GpgController
     // 返回 null 表示成功或用户已禁用
     private static string? StartScdaemon()
     {
-        // 用户禁用时跳过
         if (IsScdaemonDisabled())
         {
             _ = Log.Info("scdaemon 已禁用，跳过");
@@ -88,13 +95,9 @@ internal static class GpgController
         && options.Split('\n').Any(line =>
             line.StartsWith("disable-scdaemon:", StringComparison.Ordinal) && line.TrimEnd().EndsWith(":1", StringComparison.Ordinal));
 
-    public static string? Restart() => Kill() ?? Start();
-
-    // 成功返回 null
     private static string? Exec(string appName, string arguments, string description) =>
         Exec(appName, arguments, description, out _);
 
-    // 成功返回 null，output 带出 stdout
     private static string? Exec(string appName, string arguments, string description, out string output)
     {
         output = string.Empty;
@@ -105,14 +108,17 @@ internal static class GpgController
 
         try
         {
-            using Process process = Process.Start(new ProcessStartInfo(path, arguments)
+            using Process? process = Process.Start(new ProcessStartInfo(path, arguments)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 // 应答走 stdout，重定向防漏到控制台
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-            })!;
+            });
+
+            if (process is null)
+                return Log.Error($"无法启动: {description}");
 
             // 先异步读，防管道写满
             Task<string> stdout = ReadTextAsync(process.StandardOutput);
@@ -121,11 +127,11 @@ internal static class GpgController
             // 卡住时不能一直占着全局锁
             if (!process.WaitForExit(ExecTimeoutMs))
             {
-                Kill(process);
+                KillTree(process);
                 return Log.Warn($"{description} 超时，已强制结束");
             }
 
-            // stderr：成功不等管道关闭，失败最多等 1 秒
+            // 成功不等管道关闭，失败最多等 1 秒
             bool collected = process.ExitCode != 0 ? stderr.Wait(1000) : stderr.IsCompletedSuccessfully;
             string detail = collected ? stderr.Result.Trim() : "";
             if (detail.Length > MaxDetailChars)
@@ -137,7 +143,7 @@ internal static class GpgController
                 if (detail.Length > 0)
                     _ = Log.Info($"{description} 输出: {detail}");
 
-                output = stdout.Wait(1000) ? stdout.Result : "";
+                output = stdout.Wait(OutputTimeoutMs) ? stdout.Result : "";
                 return null;
             }
 
@@ -150,12 +156,12 @@ internal static class GpgController
         }
     }
 
-    // 结束可能已经退出的进程，失败不抛
-    private static void Kill(Process process)
+    private static void KillTree(Process process)
     {
         try
         {
-            process.Kill();
+            process.Kill(entireProcessTree: true);
+            _ = process.WaitForExit(1000);
         }
         catch (Exception)
         {
@@ -163,7 +169,6 @@ internal static class GpgController
         }
     }
 
-    // 读取异常（进程已释放）按空处理
     private static async Task<string> ReadTextAsync(StreamReader reader)
     {
         try
