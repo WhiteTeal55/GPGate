@@ -1,27 +1,4 @@
-using System.Drawing.Drawing2D;
-
 namespace GPGate;
-
-internal static class Ui
-{
-    public static GraphicsPath RoundRect(Rectangle rect, int radius)
-    {
-        GraphicsPath path = new();
-        if (radius <= 0)
-        {
-            path.AddRectangle(rect);
-            return path;
-        }
-
-        int d = radius * 2;
-        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
-}
 
 // 深浅两套配色，强调色取自图标的品牌蓝
 internal sealed class Palette

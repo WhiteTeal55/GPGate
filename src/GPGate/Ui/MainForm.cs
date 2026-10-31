@@ -290,7 +290,7 @@ internal sealed class MainForm : Form
         // 图标底色：运行偏蓝，停止中性
         Color from = _running ? Color.FromArgb(58, Palette.Accent) : Color.FromArgb(24, _theme.Text);
         Color to = _running ? Color.FromArgb(14, Palette.Accent) : Color.FromArgb(6, _theme.Text);
-        using (GraphicsPath path = Ui.RoundRect(_tileRect, S(14)))
+        using (GraphicsPath path = Shapes.RoundRect(_tileRect, S(14)))
         using (LinearGradientBrush brush = new(_tileRect, from, to, LinearGradientMode.ForwardDiagonal))
             g.FillPath(brush, path);
 
@@ -324,7 +324,7 @@ internal sealed class MainForm : Form
         Rectangle chip = new(S(20), S(92), pad + dotSize + gap + textSize.Width + pad, height);
         int textX = chip.X + pad + dotSize + gap;
 
-        using (GraphicsPath path = Ui.RoundRect(chip, chip.Height / 2))
+        using (GraphicsPath path = Shapes.RoundRect(chip, chip.Height / 2))
         using (SolidBrush brush = new(background))
             g.FillPath(brush, path);
 

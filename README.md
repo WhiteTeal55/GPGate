@@ -40,7 +40,7 @@ $p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
 
 窗口图标与任务栏图标右上角显示状态圆点。蓝色为运行中，灰色为未运行。
 
-<img src="assets/shot-dark-off.png" width="260" alt="深色 · 未运行"> <img src="assets/shot-light-on.png" width="260" alt="浅色 · 运行中">
+<img src="docs/shot-dark-off.png" width="260" alt="深色 · 未运行"> <img src="docs/shot-light-on.png" width="260" alt="浅色 · 运行中">
 
 托盘右键菜单为系统原生菜单，跟随主题配色。窗口收起后托盘图标照常刷新，打开菜单时也会先查一次。
 
@@ -50,7 +50,7 @@ $p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
 
 ## 构建
 
-需要 .NET 10 SDK，两种发布方式可一次生成。
+需要 .NET 10 SDK，两种发布方式可一次生成。仓库内也提供了对应的 VS Code 任务（`构建：框架依赖版本`、`构建：自包含版本`）。
 
 框架依赖版本约 690 KB，运行时需安装 .NET 10 桌面运行时：
 
@@ -64,6 +64,26 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained f
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone
 ```
 
+## 项目结构
+
+```
+├─ src/                源码
+│  ├─ GPGate.sln       解决方案
+│  └─ GPGate/
+│     ├─ Program.cs    入口、参数解析、退出码
+│     ├─ Core/         应用信息、日志、开机自启
+│     ├─ Gpg/          GPG 进程控制与动作锁
+│     ├─ Ui/           窗口、对话框、托盘、自绘路径
+│     │  ├─ Controls/  自绘按钮与详细信息框
+│     │  ├─ Interop/   Win32 互操作：图标、单实例、前台
+│     │  └─ Theme/     配色与深浅色刷新
+│     └─ Assets/       图标与改动说明
+├─ docs/               README 截图
+├─ tools/              图标生成脚本
+├─ .github/            CI：手动或打 tag 触发构建，打 tag 时发布 Release
+└─ .vscode/            构建任务
+```
+
 ## 图标与许可
 
 图标基于 GnuPG 官方 artwork 派生，采用 CC BY-SA 4.0。改动说明见 `src/GPGate/Assets/README.md`。
@@ -75,6 +95,8 @@ dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained t
 启动会拉起 `gpg-agent`、`keyboxd` 与 `scdaemon`，终止则一并结束。启用了 `disable-scdaemon` 时跳过 `scdaemon`。单个子进程超过 10 秒未退出即判定为失败。
 
 运行状态只看进程名，不区分登录会话与用户：三个组件有任意一个在跑就算运行中，别的用户在跑时同样显示「运行中」。
+
+界面只有深色、浅色两套配色，不跟随系统的高对比度主题。
 
 同时只允许一个操作，已有操作在跑时新的调用立即返回失败，不排队。
 

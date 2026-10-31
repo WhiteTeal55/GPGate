@@ -109,7 +109,7 @@ internal sealed class FlatButton : Button
         // 内缩 1px，避免抗锯齿边缘被控件边界裁掉
         Rectangle bounds = new(1, 1, Width - 2, Height - 2);
         int radius = Math.Min(Radius, Math.Min(bounds.Width, bounds.Height) / 2);
-        using GraphicsPath path = Ui.RoundRect(bounds, radius);
+        using GraphicsPath path = Shapes.RoundRect(bounds, radius);
         Color fill = Dimmed(CurrentFill);
         using (SolidBrush brush = new(fill))
         using (Pen pen = new(fill))
@@ -161,7 +161,7 @@ internal sealed class FlatButton : Button
         int inset = (int)Math.Round(3 * DpiScale);
         Rectangle ring = Rectangle.Inflate(bounds, -inset, -inset);
         using Pen pen = new(CurrentText, Math.Max(1f, 1.2f * DpiScale)) { DashStyle = DashStyle.Dot };
-        using GraphicsPath path = Ui.RoundRect(ring, Math.Max(radius - inset, 2));
+        using GraphicsPath path = Shapes.RoundRect(ring, Math.Max(radius - inset, 2));
         g.DrawPath(pen, path);
     }
 }
