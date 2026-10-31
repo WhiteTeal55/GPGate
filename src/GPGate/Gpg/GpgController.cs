@@ -33,21 +33,6 @@ internal static class GpgController
         }
     }
 
-    // 一次枚举全部进程；按名字逐个查要枚举三遍
-    private static bool IsAnyProcessRunning(params string[] names)
-    {
-        Process[] processes = Process.GetProcesses();
-        try
-        {
-            return processes.Any(process => names.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase));
-        }
-        finally
-        {
-            foreach (Process process in processes)
-                process.Dispose();
-        }
-    }
-
     public static string? Toggle() => IsRunning() is true ? Kill() : Start();
 
     public static string? Kill() => Exec("gpgconf", "--kill all", "终止 GPG 进程");
@@ -62,6 +47,29 @@ internal static class GpgController
         // gpg-connect-agent 会自己等 agent 起来
         string? keyboxdFailed = Exec("gpg-connect-agent", "--keyboxd /bye", "启动 keyboxd");
         return StartScdaemon() ?? keyboxdFailed;
+    }
+
+    public static string? Restart() => Kill() ?? Start();
+
+    // 只查询目标进程，避免读取系统中所有进程的名称。
+    private static bool IsAnyProcessRunning(params string[] names)
+    {
+        foreach (string name in names)
+        {
+            Process[] processes = Process.GetProcessesByName(name);
+            try
+            {
+                if (processes.Length > 0)
+                    return true;
+            }
+            finally
+            {
+                foreach (Process process in processes)
+                    process.Dispose();
+            }
+        }
+
+        return false;
     }
 
     // 返回 null 表示成功或用户已禁用
@@ -87,8 +95,6 @@ internal static class GpgController
         Exec("gpgconf", "--list-options gpg-agent", "读取 gpg-agent 选项", out string options) is null
         && options.Split('\n').Any(line =>
             line.StartsWith("disable-scdaemon:", StringComparison.Ordinal) && line.TrimEnd().EndsWith(":1", StringComparison.Ordinal));
-
-    public static string? Restart() => Kill() ?? Start();
 
     // 成功返回 null
     private static string? Exec(string appName, string arguments, string description) =>

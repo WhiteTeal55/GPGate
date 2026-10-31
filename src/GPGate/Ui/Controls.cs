@@ -2,6 +2,23 @@
 
 namespace GPGate;
 
+// 只读多行文本框：原生背景和滚动条缓存在句柄里，主题变了要重建句柄
+internal sealed class DetailsBox : TextBox
+{
+    private bool _dark = Application.IsDarkModeEnabled; // 与建句柄时的主题一致
+
+    // 同色广播不重建，省得滚动位置被重置
+    internal void ReloadTheme(bool dark)
+    {
+        if (_dark == dark)
+            return;
+
+        _dark = dark;
+        if (IsHandleCreated)
+            RecreateHandle();
+    }
+}
+
 // 链接样式按钮：单行自绘 chevron + 文字，悬停下划线；用按钮类避免静态文本的双击取词/复制
 internal sealed class LinkButton : Button
 {
@@ -42,23 +59,15 @@ internal sealed class LinkButton : Button
         }
     }
 
+    // 图标占位按 4px 取整，免得展开/收起的箭头差 1px 让文字左右跳；调用方据此对齐内容列
+    internal int IconOffset => (Measure(_icon, _iconFont).Width + 3) / 4 * 4 + IconGap;
+
     public override Size GetPreferredSize(Size proposedSize)
     {
         Size icon = Measure(_icon, _iconFont);
         Size text = Measure(Text, Font);
         return new Size(IconOffset + text.Width, Math.Max(icon.Height, text.Height));
     }
-
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing); // 先销毁控件再释放字体
-
-        if (disposing)
-            _iconFont.Dispose();
-    }
-
-    // 图标占位按 4px 取整，免得展开/收起的箭头差 1px 让文字左右跳；调用方据此对齐内容列
-    internal int IconOffset => (Measure(_icon, _iconFont).Width + 3) / 4 * 4 + IconGap;
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -97,9 +106,15 @@ internal sealed class LinkButton : Button
         }
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing); // 先销毁控件再释放字体
+
+        if (disposing)
+            _iconFont.Dispose();
+    }
+
     private static Size Measure(string text, Font font) =>
         TextRenderer.MeasureText(text, font, Size.Empty,
             TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
 }
-
-

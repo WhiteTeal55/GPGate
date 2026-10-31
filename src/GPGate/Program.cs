@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace GPGate;
 
-// /s 启动、/k 终止、/r 重启、/g 界面；无参数时自动切换，无父控制台则进界面。
+// /s 启动、/k 终止、/r 重启、/g 托盘程序；无参数时自动切换，无父控制台则进托盘程序。
 internal static class Program
 {
     private const int AttachParentProcess = -1;
@@ -62,42 +62,13 @@ internal static class Program
         return 1;
     }
 
-    private static string? ToCommand(string arg) => arg.ToLowerInvariant() switch
-    {
-        "/s" => "start",
-        "/k" => "kill",
-        "/r" => "restart",
-        _ => null,
-    };
-
-    private static string Usage(string arg) => $"""
-        参数错误: {arg}
-        用法: {Environment.ProcessPath} [选项]
-          /s  启动 GPG 代理
-          /k  终止 GPG 进程
-          /r  重启 GPG 代理
-          /g  打开图形界面
-          (无参数) 自动切换
-        """;
-
     private static int StartGui()
     {
         using var mutex = new Mutex(true, GuiMutexName, out bool createdNew);
         if (!createdNew)
         {
-            // 已有实例：等窗口建好再唤醒，3 秒等不到就提示退出
-            long deadline = Environment.TickCount64 + 3000;
-            while (Environment.TickCount64 < deadline)
-            {
-                if (SingleInstance.NotifyExisting())
-                    return 0;
-
-                Thread.Sleep(100);
-            }
-
-            _ = Log.Warn("已有实例但未找到主窗口");
-            Dialog.Show(null, TaskDialogIcon.Information, "没能唤出已运行实例的窗口，请在任务栏或托盘里找一下，必要时结束进程后重试。", "已有一个 GPGate 在运行");
-            return 1;
+            Dialog.Show(null, TaskDialogIcon.Information, "GPGate 已在系统托盘运行，请不要重复运行程序。", "程序已在运行");
+            return 0;
         }
 
         // 界面线程异常：记日志并提示
@@ -106,7 +77,7 @@ internal static class Program
 
         try
         {
-            ThemePreference.ApplyColorMode();
+            Application.SetColorMode(SystemColorMode.System);
             Application.Run(new MainForm());
             return 0;
         }
@@ -123,6 +94,24 @@ internal static class Program
         _ = Log.Error($"界面异常: {ex}");
         Dialog.Show(null, TaskDialogIcon.Error, ex.Message, "程序出错", $"日志：{Log.FilePath}");
     }
+
+    private static string? ToCommand(string arg) => arg.ToLowerInvariant() switch
+    {
+        "/s" => "start",
+        "/k" => "kill",
+        "/r" => "restart",
+        _ => null,
+    };
+
+    private static string Usage(string arg) => $"""
+        参数错误: {arg}
+        用法: {Environment.ProcessPath} [选项]
+          /s  启动 GPG 代理
+          /k  终止 GPG 进程
+          /r  重启 GPG 代理
+          /g  启动托盘程序（已运行则提示）
+          (无参数) 自动切换
+        """;
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int processId);

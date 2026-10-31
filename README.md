@@ -1,109 +1,120 @@
 # GPGate
 
-用于 `gpg-agent`、`keyboxd` 与 `scdaemon` 的启停管理，封装为单条命令。
+GPGate 是一个 Windows 托盘工具，用于启动、终止和重启 GnuPG 后台进程。
 
-## 用法
+- 面向 Windows 11 x64
+- 需要将 `gpgconf.exe` 和 `gpg-connect-agent.exe` 加入 `PATH`
+- 使用 .NET 10 构建
 
+## 托盘使用
+
+启动程序后，GPGate 常驻系统托盘，不显示主窗口。默认会显示 Windows 通知提示程序已启动；在托盘菜单中取消勾选「启动时提示」即可关闭后续通知。单击或右键托盘图标可打开菜单。
+
+托盘菜单提供：
+
+- **启动 / 终止 / 重启** GnuPG 后台进程
+- **开机自启**：将当前程序路径写入当前用户的 Windows 启动项
+- **启动时提示**：控制程序启动通知，默认开启
+- **打开日志**
+- **关于**
+- **退出**
+
+托盘图标每 5 秒刷新一次运行状态，打开菜单时也会立即刷新。菜单和提示窗口跟随 Windows 应用配色。
+
+如果程序已在运行，再次启动 GPGate 或执行 `/g` 会立即提示程序已在运行，然后退出新进程。请使用已有的托盘图标打开菜单。正在执行 GPG 操作时，新的操作不会排队；此时请求退出会等操作结束，操作失败时保留托盘实例并显示错误。
+
+## 命令行
+
+```text
+GPGate.exe /s   启动 GnuPG 后台进程
+GPGate.exe /k   终止 GnuPG 后台进程
+GPGate.exe /r   重启 GnuPG 后台进程
+GPGate.exe /g   启动托盘程序
+GPGate.exe      自动切换：运行中则终止，否则启动
 ```
-GPGate.exe /s   启动
-GPGate.exe /k   终止
-GPGate.exe /r   重启
-GPGate.exe /g   打开图形界面
-GPGate.exe      自动切换（正在运行就停止，未在运行就启动）
+
+参数不区分大小写。命令行调用会等待 GPG 操作完成，并返回退出码：
+
+| 退出码 | 含义 |
+| --- | --- |
+| `0` | 成功 |
+| `1` | 操作失败 |
+| `2` | 参数错误 |
+
+参数错误时会输出用法。无控制台时，错误通过提示窗口显示。
+
+在 PowerShell 中获取退出码：
+
+```powershell
+$p = Start-Process .\GPGate.exe -ArgumentList '/s' -PassThru
+$p.WaitForExit()
+$p.ExitCode
 ```
 
-参数不区分大小写。参数多余时程序报错退出，返回码 `2`。
+不要给 `Start-Process` 加 `-Wait`：GPG 子进程可能继续运行，导致 PowerShell 一直等待。
 
-双击运行时进入图形界面。
+## GnuPG 操作说明
 
-在终端中调用不会阻塞 shell，获取退出码请使用：
+启动会依次启动 `gpg-agent`、`keyboxd` 和 `scdaemon`。若 GnuPG 配置中禁用了 `scdaemon`，则跳过它。终止操作使用 `gpgconf --kill all`。
 
-```
-$p = Start-Process GPGate.exe /s -PassThru; $p.WaitForExit(); $p.ExitCode
-```
+运行状态根据 `gpg-agent`、`keyboxd` 和 `scdaemon` 进程判断；任一进程运行即视为 GnuPG 正在运行。该判断不区分 Windows 用户或登录会话。
 
-不要加 `-Wait`：它会连带等待 `gpg-agent`，看起来像卡死。
+单个 GnuPG 命令最多等待 10 秒。操作失败时会显示错误提示；无控制台的命令行调用也会显示提示窗口。
 
-退出码含义：`0` 成功，`1` 失败，`2` 参数错误。
+## 日志与设置
 
-仅支持 Windows 11 x64。`gpgconf.exe` 与 `gpg-connect-agent.exe` 必须位于 PATH 中。
+- 日志文件：`%TEMP%\GPGate\gpgate.log`
+- 日志超过 512 KB 后轮转为 `gpgate.log.old`
+- 开机自启与启动通知偏好保存在当前用户注册表中
+- 注册表设置写入失败时会显示提示
 
-## 图形界面
+## 构建与发布
 
-界面为无边框圆角卡片，支持深色、浅色与跟随系统主题，按 DPI 缩放。右上角太阳/月亮按钮可在深浅色间切换；托盘右键菜单可选择「深色」「浅色」或「跟随系统」，设置会保存。
+需要安装 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)。仓库的 VS Code 任务也提供框架依赖和自包含两种发布方式。
 
-顶部区域可拖动。Esc 关闭窗口，F1 打开关于。
+### 框架依赖
 
-`–` 最小化至托盘，单击托盘图标即可恢复。`×` 为退出，默认需二次确认（可勾选「不再提示」）。若当前有操作正在执行，程序会等待该操作完成后再退出。等待期间界面锁定，不响应点击。操作失败时程序不退出，在界面上提示错误。
+需要安装 .NET 10 Desktop Runtime：
 
-界面只呈现当前可用的操作，状态每 2 秒刷新，窗口收起后降为 5 秒。状态行右侧为「日志」与版本号。
-
-窗口图标与任务栏图标右上角显示状态圆点。蓝色为运行中，灰色为未运行。
-
-<img src="docs/shot-dark-off.png" width="260" alt="深色 · 未运行"> <img src="docs/shot-light-on.png" width="260" alt="浅色 · 运行中">
-
-托盘右键菜单为系统原生菜单，跟随主题配色。窗口收起后托盘图标照常刷新，打开菜单时也会先查一次。
-
-菜单包含显示窗口、启动/终止/重启、主题模式、开机自启、退出时二次确认、打开日志与关于。关于页显示版本、版权与图标署名。
-
-程序已在运行时，再次启动或执行 `/g` 均不会创建新实例。已有实例将被唤至前台。3 秒内未能唤出时会弹出提示。
-
-## 构建
-
-需要 .NET 10 SDK，两种发布方式可一次生成。仓库内也提供了对应的 VS Code 任务（`构建：框架依赖版本`、`构建：自包含版本`）。
-
-框架依赖版本约 690 KB，运行时需安装 .NET 10 桌面运行时：
-
-```
+```powershell
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 ```
 
-自包含版本约 50 MB，无需安装运行时。代价是首次启动延迟约半秒：
+### 自包含
 
-```
+无需另外安装 .NET 运行时：
+
+```powershell
 dotnet publish src/GPGate/GPGate.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o publish-standalone
 ```
 
 ## 项目结构
 
-```
-├─ src/                源码
-│  ├─ GPGate.sln       解决方案
+```text
+GPGate/
+├─ src/
 │  └─ GPGate/
-│     ├─ Program.cs    入口、参数解析、退出码
-│     ├─ Core/         应用信息、日志、开机自启
-│     ├─ Gpg/          GPG 进程控制与动作锁
-│     ├─ Ui/           窗口、对话框、托盘、自绘路径
-│     │  ├─ Controls/  自绘按钮与详细信息框
-│     │  ├─ Interop/   Win32 互操作：图标、单实例、前台
-│     │  └─ Theme/     配色与深浅色刷新
-│     └─ Assets/       图标与改动说明
-├─ docs/               README 截图
-├─ tools/              图标生成脚本
-├─ .github/            CI：手动或打 tag 触发构建，打 tag 时发布 Release
-└─ .vscode/            构建任务
+│     ├─ Program.cs                      程序入口、参数解析、托盘进程单实例管理
+│     ├─ GPGate.csproj                   .NET 10 Windows Forms 项目与嵌入资源配置
+│     ├─ Core/
+│     │  ├─ AppInfo.cs                   程序名称、版本、元数据与应用图标加载
+│     │  ├─ Log.cs                       日志记录、并发保护与日志轮转
+│     │  └─ Startup.cs                   开机自启注册表项与启动通知偏好管理
+│     ├─ Gpg/
+│     │  ├─ ActionGate.cs                跨进程 GPG 操作互斥与命令分发
+│     │  └─ GpgController.cs             GnuPG 进程状态查询及启停控制
+│     ├─ Ui/
+│     │  ├─ MainForm.cs                  隐藏的托盘宿主、状态刷新与菜单命令处理
+│     │  ├─ TrayMenu.cs                  原生托盘菜单及主题适配
+│     │  ├─ AboutForm.cs                 关于窗口
+│     │  ├─ Dialog.cs                    提示窗口显示入口与窗口实现
+│     │  ├─ Controls.cs                  详细信息文本框与链接按钮
+│     │  ├─ Interop.cs                   图标、声音/任务栏提示与窗口焦点互操作
+│     │  └─ Theme.cs                     深浅色调色板与 Windows 配色刷新
 ```
 
-## 图标与许可
+## 许可与图标署名
 
-图标基于 GnuPG 官方 artwork 派生，采用 CC BY-SA 4.0。改动说明见 `src/GPGate/Assets/README.md`。
+程序代码采用 MIT 许可，详见 [LICENSE](LICENSE)。
 
-代码采用 MIT 许可，见 `LICENSE`；图标为 CC BY-SA 4.0。本项目与 GnuPG 项目无隶属关系。
-
-## 说明
-
-启动会拉起 `gpg-agent`、`keyboxd` 与 `scdaemon`，终止则一并结束。启用了 `disable-scdaemon` 时跳过 `scdaemon`。单个子进程超过 10 秒未退出即判定为失败。
-
-运行状态只看进程名，不区分登录会话与用户：三个组件有任意一个在跑就算运行中，别的用户在跑时同样显示「运行中」。
-
-界面只有深色、浅色两套配色，不跟随系统的高对比度主题。
-
-同时只允许一个操作，已有操作在跑时新的调用立即返回失败，不排队。
-
-任一环节失败时，对话框会一并给出子进程的错误输出。日志位于 `%TEMP%\GPGate\gpgate.log`，按行记录，超过 512 KB 轮转为 `.old`。
-
-在无控制台环境下，参数错误和执行失败同样以对话框提示。完整用法置于对话框的展开区域中。
-
-开机自启由托盘菜单控制。未勾选「自启时启动托盘」时，开机只静默启动，不显示托盘图标。设置写入失败时会提示需要管理员权限。
-
-退出确认默认开启。可在确认框中勾选「不再提示」，也可在托盘菜单的「退出时二次确认」里开关。
+图标基于 GnuPG 官方 artwork 派生，按 CC BY-SA 4.0 使用。署名 GnuPG Project / g10 Code GmbH。来源、改动说明和许可信息见 [图标素材说明](src/GPGate/Assets/README.md)。GPGate 与 GnuPG 项目无隶属关系。

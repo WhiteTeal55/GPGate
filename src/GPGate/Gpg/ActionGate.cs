@@ -35,7 +35,6 @@ internal static class ActionGate
 
         try
         {
-            _ = Startup.Sync();
             _ = Log.Info($"执行 {command}");
             return (true, Dispatch(command));
         }

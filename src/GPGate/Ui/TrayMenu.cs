@@ -5,31 +5,23 @@ namespace GPGate;
 internal enum TrayCommand
 {
     None,
-    ToggleWindow,
     Start,
     Kill,
     Restart,
-    SetDarkTheme,
-    SetLightTheme,
-    SetSystemTheme,
     ToggleStartup,
-    ToggleStartupTray,
-    ToggleCloseConfirmation,
+    ToggleStartupNotification,
     OpenLog,
     About,
     Close,
 }
 
 internal readonly record struct TrayMenuState(
-    bool WindowVisible,
     bool Running,
     bool Busy,
     bool StartupEnabled,
-    bool TrayOnStartup,
-    bool CloseConfirmationEnabled,
+    bool StartupNotificationEnabled,
     bool CanManageStartup,
-    bool LightTheme,
-    ThemeMode ThemeMode);
+    bool LightTheme);
 
 // 托盘右键菜单：系统原生 popup，自己持有隐藏 owner 窗口
 internal sealed class TrayMenu : NativeWindow, IDisposable
@@ -41,7 +33,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
     private const uint MfString = 0x0000;
     private const uint MfGrayed = 0x0001;
     private const uint MfChecked = 0x0008;
-    private const uint MfPopup = 0x0010;
     private const uint MfSeparator = 0x0800;
     private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCmd = 0x0100;
@@ -69,10 +60,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
         try
         {
-            Append(menu, TrayCommand.ToggleWindow, state.WindowVisible ? "隐藏窗口" : "显示窗口");
-            SetMenuDefaultItem(menu, (uint)TrayCommand.ToggleWindow, 0);
-            Separator(menu);
-
             bool canAct = !state.Busy;
             if (state.Running)
             {
@@ -84,29 +71,14 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
                 Append(menu, TrayCommand.Start, "启动", enabled: canAct);
             }
 
-            IntPtr themeMenu = CreatePopupMenu();
-            if (themeMenu == IntPtr.Zero)
-                return TrayCommand.None;
-
-            Append(themeMenu, TrayCommand.SetDarkTheme, "深色",
-                checkedItem: state.ThemeMode == ThemeMode.Dark);
-            Append(themeMenu, TrayCommand.SetLightTheme, "浅色",
-                checkedItem: state.ThemeMode == ThemeMode.Light);
-            Append(themeMenu, TrayCommand.SetSystemTheme, "跟随系统配色",
-                checkedItem: state.ThemeMode == ThemeMode.System);
-            AppendMenu(menu, MfString | MfPopup, themeMenu, "主题颜色");
-
             Separator(menu);
             bool canStartup = state.CanManageStartup;
             Append(menu, TrayCommand.ToggleStartup, "开机自启",
                 enabled: canStartup, checkedItem: state.StartupEnabled);
-            Append(menu, TrayCommand.ToggleStartupTray, "自启时启动托盘",
-                enabled: canStartup && state.StartupEnabled, checkedItem: state.TrayOnStartup);
             if (!canStartup)
                 Append(menu, TrayCommand.None, "开机自启需要管理员权限", enabled: false);
-            Append(menu, TrayCommand.ToggleCloseConfirmation, "退出时二次确认",
-                checkedItem: state.CloseConfirmationEnabled);
-
+            Append(menu, TrayCommand.ToggleStartupNotification, "启动时提示",
+                checkedItem: state.StartupNotificationEnabled);
             Separator(menu);
             Append(menu, TrayCommand.OpenLog, "打开日志");
             Append(menu, TrayCommand.About, "关于");
@@ -114,7 +86,7 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
             GetCursorPos(out CursorPoint cursor);
 
-            // 用隐藏 owner 当前台：菜单才会自动收起又不顶起卡片
+            // 用隐藏 owner 当前台：菜单自动收起且不显示主窗口
             ApplyTheme(state.LightTheme);
             WindowFocus.BringToForeground(Handle);
             int command = TrackPopupMenuEx(menu, TpmRightButton | TpmReturnCmd,
@@ -140,7 +112,7 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
     private static void Separator(IntPtr menu) => AppendMenu(menu, MfSeparator, 0, null);
 
-    // 深色渲染按窗口开启（uxtheme 未公开入口，缺失时按默认主题显示）
+    // 托盘菜单跟随 Windows 应用配色
     private void ApplyTheme(bool lightTheme)
     {
         try
@@ -167,9 +139,6 @@ internal sealed class TrayMenu : NativeWindow, IDisposable
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern void AppendMenu(IntPtr hMenu, uint uFlags, nint uIDNewItem, string? lpNewItem);
-
-    [DllImport("user32.dll")]
-    private static extern void SetMenuDefaultItem(IntPtr hMenu, uint uItem, uint fByPos);
 
     [DllImport("user32.dll")]
     private static extern int TrackPopupMenuEx(IntPtr hMenu, uint fuFlags, int x, int y, IntPtr hWnd, IntPtr lptpm);

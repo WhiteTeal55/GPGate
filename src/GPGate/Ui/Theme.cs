@@ -2,6 +2,33 @@ using System.Runtime.InteropServices;
 
 namespace GPGate;
 
+// 提示与关于窗口的深浅色，以及运行状态图标的品牌蓝
+internal sealed class Palette
+{
+    public static readonly Color Accent = Color.FromArgb(0, 147, 221);
+
+    public static readonly Palette Dark = new()
+    {
+        FieldBackground = Color.FromArgb(50, 50, 50),
+        Separator = Color.FromArgb(74, 74, 74),
+        Text = Color.FromArgb(243, 244, 246),
+        ChipText = Color.FromArgb(130, 208, 246),
+    };
+
+    public static readonly Palette Light = new()
+    {
+        FieldBackground = Color.White,
+        Separator = Color.FromArgb(160, 160, 160),
+        Text = Color.FromArgb(22, 24, 29),
+        ChipText = Color.FromArgb(0, 106, 165),
+    };
+
+    public Color FieldBackground { get; init; }
+    public Color Separator { get; init; }
+    public Color Text { get; init; }
+    public Color ChipText { get; init; }
+}
+
 // 系统深浅色切换时刷新已打开的窗口
 internal static class ThemeRefresh
 {
@@ -14,20 +41,13 @@ internal static class ThemeRefresh
         if (m.Msg != WmSettingChange || !IsImmersiveColorSet(m.LParam))
             return false;
 
-        ThemePreference.ApplyColorMode();
-        Apply(form, ThemePreference.IsDark, applyTheme);
+        Application.SetColorMode(SystemColorMode.System);
+        Apply(form, Application.IsDarkModeEnabled, applyTheme);
         return true;
     }
 
-    internal static void RefreshOpenForms()
-    {
-        bool dark = ThemePreference.IsDark;
-        foreach (Form form in Application.OpenForms)
-            Apply(form, dark, form is MainForm main ? main.ApplyTheme : null);
-    }
-
     // 命令行路径没走过 GUI 初始化，补一次全局配色
-    internal static void EnsureColorMode() => ThemePreference.ApplyColorMode();
+    internal static void EnsureColorMode() => Application.SetColorMode(SystemColorMode.System);
 
     private static bool IsImmersiveColorSet(IntPtr lParam) =>
         Marshal.PtrToStringUni(lParam) is string name &&
@@ -42,7 +62,7 @@ internal static class ThemeRefresh
         {
             Refresh(child, dark);
 
-            if (child is ButtonBase button and not (FlatButton or LinkButton))
+            if (child is ButtonBase button and not LinkButton)
             {
                 FlatStyle style = button.FlatStyle;
                 button.FlatStyle = style == FlatStyle.Standard ? FlatStyle.Popup : FlatStyle.Standard;
