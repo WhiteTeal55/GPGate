@@ -149,16 +149,13 @@ internal sealed class AboutForm : Form
     {
         try
         {
-            using Process? process = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-            if (process is not null)
-                return;
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex)
         {
             _ = Log.Warn($"打开链接失败: {ex.Message}");
+            ShowError($"无法打开链接：{url}");
         }
-
-        ShowError($"无法打开链接：{url}");
     }
 
     private void ShowError(string message) =>

@@ -207,16 +207,13 @@ internal sealed class TrayContext : ApplicationContext
         try
         {
             _ = Directory.CreateDirectory(Log.DirectoryPath);
-            using Process? process = Process.Start(new ProcessStartInfo(Log.DirectoryPath) { UseShellExecute = true });
-            if (process is not null)
-                return;
+            Process.Start(new ProcessStartInfo(Log.DirectoryPath) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex)
         {
             _ = Log.Warn($"打开日志文件夹失败: {ex.Message}");
+            ShowError("无法打开日志文件夹。");
         }
-
-        ShowError("无法打开日志文件夹。");
     }
 
     // 独立窗口，不阻塞托盘
