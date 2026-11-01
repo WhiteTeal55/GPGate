@@ -147,18 +147,11 @@ internal sealed class DialogForm : Form
 
         int contentBottom = link?.Bottom ?? y;
 
-        Panel separator = new()
-        {
-            Bounds = new Rectangle(0, contentBottom + 20, DialogWidth, 1),
-            BackColor = palette.Separator,
-        };
-        Controls.Add(separator);
-
         Button ok = new()
         {
             Text = "确定",
             DialogResult = DialogResult.OK,
-            Bounds = new Rectangle(DialogWidth - 24 - 88, separator.Bottom + 12, 88, 32),
+            Bounds = new Rectangle(DialogWidth - 24 - 88, contentBottom + 12, 88, 32),
         };
         Controls.Add(ok);
 
@@ -211,8 +204,7 @@ internal sealed class DialogForm : Form
             Invalidate(Rectangle.Inflate(_details.Bounds, 1, 1));
 
             int gap = LogicalToDeviceUnits(12);
-            separator.Top = (expanded ? _details.Bottom : link!.Bottom) + LogicalToDeviceUnits(20);
-            ok.Top = separator.Bottom + gap;
+            ok.Top = (expanded ? _details.Bottom : link!.Bottom) + LogicalToDeviceUnits(12);
             if (cancel is not null)
                 cancel.Top = ok.Top;
             if (_checkBox is not null)
